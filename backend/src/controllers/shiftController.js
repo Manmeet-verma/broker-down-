@@ -94,13 +94,13 @@ async function serializeShiftDoc(doc) {
 }
 
 async function serializeAll(snapshotOrList) {
-  const docs = Array.isArray(snapshotOrList) ? snapshotOrList : snapshotOrList.docs.map(serializeShiftDoc);
+  const docs = Array.isArray(snapshotOrList) ? snapshotOrList : await Promise.all(snapshotOrList.docs.map(serializeShiftDoc));
   return serializeList(docs);
 }
 
 async function serializeList(shifts) {
-  const idsD = [...new Set(shifts.map((s) => s.driverId))];
-  const idsV = [...new Set(shifts.map((s) => s.vehicleId))];
+  const idsD = [...new Set(shifts.map((s) => s.driverId).filter(Boolean))];
+  const idsV = [...new Set(shifts.map((s) => s.vehicleId).filter(Boolean))];
   const names = { drivers: {}, vehicles: {} };
   if (idsD.length) {
     const snaps = await Promise.all(

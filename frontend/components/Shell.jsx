@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -31,8 +31,8 @@ function NavItem({ item, active, onNavigate }) {
       className={cls(
         'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
         active
-          ? 'border border-sky-500/30 bg-sky-500/15 text-sky-300'
-          : 'text-sky-400 hover:bg-slate-800 hover:text-sky-300'
+          ? 'border border-sky-500/40 bg-sky-500/20 text-sky-300'
+          : 'text-white hover:bg-slate-800 hover:text-sky-300'
       )}
     >
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
@@ -50,6 +50,15 @@ export function Shell({ children, role }) {
 
   const nav = role === 'admin' ? ADMIN_NAV : DRIVER_NAV;
 
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   const sidebar = (
     <div className="flex h-full flex-col bg-slate-900">
       <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-4">
@@ -64,13 +73,13 @@ export function Shell({ children, role }) {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3 scrollbar-thin">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3 scrollbar-thin">
         {nav.map((item) => (
           <NavItem key={item.href} item={item} active={pathname === item.href || pathname.startsWith(item.href + '/')} onNavigate={() => setOpen(false)} />
         ))}
       </nav>
 
-      <div className="border-t border-slate-800 p-3">
+      <div className="shrink-0 border-t border-slate-800 p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-bold text-white">
             {(user?.name || 'U').charAt(0).toUpperCase()}
