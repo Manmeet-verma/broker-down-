@@ -1,4 +1,4 @@
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://broker-down-r68m.vercel.app/api';
+const API = (process.env.NEXT_PUBLIC_API_URL || 'https://broker-down-r68m.vercel.app/api').replace(/^http:\/\//, 'https://');
 
 let token = null;
 export const setApiToken = (t) => (token = t);
