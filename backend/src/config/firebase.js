@@ -14,13 +14,16 @@ async function initAdmin() {
 
   let credentials;
   try {
-    if (!existsSync(ENV.serviceAccountPath)) {
-      throw new Error('file not found');
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (raw) {
+      credentials = JSON.parse(raw);
+    } else if (existsSync(ENV.serviceAccountPath)) {
+      credentials = JSON.parse(readFileSync(ENV.serviceAccountPath, 'utf8'));
+    } else {
+      throw new Error('No FIREBASE_SERVICE_ACCOUNT env var and file not found');
     }
-    credentials = JSON.parse(readFileSync(ENV.serviceAccountPath, 'utf8'));
   } catch (err) {
-    console.error('[FATAL] Cannot read service account file at', ENV.serviceAccountPath);
-    console.error('Download it from Firebase Console > Project Settings > Service Accounts and save it as backend/service-account.json');
+    console.error('[FATAL] Cannot load service account:', err.message);
     process.exit(1);
   }
 

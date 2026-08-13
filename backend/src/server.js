@@ -89,6 +89,11 @@ app.patch('/api/issues/:id/status', authenticate, requireAdmin, asyncHandler(iss
 app.use(notFound);
 app.use(errorHandler);
 
-app.listen(ENV.port, () => {
-  console.log(`[fleet-backend] listening on http://localhost:${ENV.port}`);
-});
+const isVercel = process.env.VERCEL;
+if (!isVercel) {
+  app.listen(ENV.port, () => {
+    console.log(`[fleet-backend] listening on http://localhost:${ENV.port}`);
+  });
+}
+
+export default app;
