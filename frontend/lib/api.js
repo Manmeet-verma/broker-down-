@@ -1,4 +1,4 @@
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://broker-down-r68m.vercel.app/api';
 
 let token = null;
 export const setApiToken = (t) => (token = t);
