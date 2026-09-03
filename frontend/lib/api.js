@@ -1,4 +1,5 @@
-const API = (process.env.NEXT_PUBLIC_API_URL || 'https://broker-down-r68m.vercel.app/api').replace(/^http:\/\//, 'https://');
+const rawApi = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const API = rawApi.includes('localhost') ? rawApi : rawApi.replace(/^http:\/\//, 'https://');
 
 let token = null;
 export const setApiToken = (t) => (token = t);

@@ -12,16 +12,46 @@ const ADMIN_NAV = [
   { href: '/admin/drivers', label: 'Drivers', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
   { href: '/admin/shifts', label: 'Shifts', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
   { href: '/admin/issues', label: 'Issues', icon: 'M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { href: '/admin/users', label: 'Accounts', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' }
+  { href: '/admin/users', label: 'Accounts', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+  { href: '/admin/categories', label: 'Categories', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
+  { href: '/admin/ownership-names', label: 'Ownership', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+  { href: '/admin/insurance-types', label: 'Insurance Types', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+  { href: '/admin/license-types', label: 'License Types', icon: 'M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0' },
+  { href: '/admin/installment-counts', label: 'Installments', icon: 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z' }
 ];
 
-const DRIVER_NAV = [
-  { href: '/driver', label: 'Dashboard', icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10' },
-  { href: '/driver/profile', label: 'My Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-  { href: '/driver/vehicles', label: 'My Vehicles', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m-12 6h12m0 0l-4-4m4 4l-4 4M4 3h8a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z' },
-  { href: '/driver/shifts', label: 'My Shifts', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { href: '/driver/issues', label: 'Report Problem', icon: 'M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }
+const INPUTTER_NAV = [
+  { href: '/inputter', label: 'Dashboard', icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10' },
+  { href: '/inputter/vehicles', label: 'Vehicles', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m-12 6h12m0 0l-4-4m4 4l-4 4M4 3h8a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z' },
+  { href: '/inputter/vehicles/new', label: 'Add Vehicle', icon: 'M12 4v16m8-8H4' },
+  { href: '/inputter/drivers', label: 'Drivers', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
 ];
+
+const RECOMMENDER_NAV = [
+  { href: '/recommender', label: 'Dashboard', icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10' },
+  { href: '/recommender/vehicles', label: 'Review Vehicles', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { href: '/recommender/drivers', label: 'Review Drivers', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
+];
+
+const VERIFIER_NAV = [
+  { href: '/verifier', label: 'Dashboard', icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10' },
+  { href: '/verifier/vehicles', label: 'Verify Vehicles', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+  { href: '/verifier/drivers', label: 'Verify Drivers', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' }
+];
+
+const NAV_MAP = {
+  admin: ADMIN_NAV,
+  inputter: INPUTTER_NAV,
+  recommender: RECOMMENDER_NAV,
+  verifier: VERIFIER_NAV
+};
+
+const ROLE_LABELS = {
+  admin: 'Administrator',
+  inputter: 'Data Inputter',
+  recommender: 'Reviewer',
+  verifier: 'Verifier'
+};
 
 function NavItem({ item, active, onNavigate }) {
   return (
@@ -48,7 +78,8 @@ export function Shell({ children, role }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const nav = role === 'admin' ? ADMIN_NAV : DRIVER_NAV;
+  const nav = NAV_MAP[user?.role] || ADMIN_NAV;
+  const roleLabel = ROLE_LABELS[user?.role] || user?.role || 'User';
 
   useEffect(() => {
     if (!open) return;
@@ -68,8 +99,8 @@ export function Shell({ children, role }) {
           </svg>
         </div>
         <div>
-          <div className="text-sm font-bold text-white">Fleet Manager</div>
-          <div className="text-[11px] text-slate-400">{role === 'admin' ? 'Admin Panel' : 'Driver Portal'}</div>
+          <div className="text-sm font-bold text-white">Equipment Management</div>
+          <div className="text-[11px] text-slate-400">{roleLabel}</div>
         </div>
       </div>
 
@@ -86,7 +117,7 @@ export function Shell({ children, role }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-white">{user?.name}</div>
-            <div className="truncate text-[11px] text-slate-400">{user?.role === 'admin' ? 'Administrator' : 'Driver'}</div>
+            <div className="truncate text-[11px] text-slate-400">{roleLabel}</div>
           </div>
           <button onClick={signOut} title="Sign out" className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -119,7 +150,7 @@ export function Shell({ children, role }) {
             </svg>
           </button>
           <div className="text-sm text-slate-500">
-            {user?.role === 'admin' ? 'Administration' : `Driver · ${user?.name || ''}`}
+            {roleLabel} · {user?.name || ''}
           </div>
           <button onClick={signOut} className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
             Sign out

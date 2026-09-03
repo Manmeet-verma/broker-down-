@@ -23,7 +23,7 @@ export async function login(req, res) {
         email: fb.email,
         username: fb.email,
         name: fb.displayName || fb.email || 'User',
-        role: decoded.role || 'user',
+        role: decoded.role || 'inputter',
         status: 'active',
         createdAt: new Date()
       };
@@ -53,11 +53,11 @@ export async function me(req, res) {
  */
 export async function createUser(req, res) {
   const { username, password, role, name, phone, status } = req.body;
-  const allowed = ['admin', 'user'];
+  const allowed = ['admin', 'inputter', 'recommender', 'verifier'];
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
-  if (!allowed.includes(role || 'user')) return res.status(400).json({ error: 'Invalid role' });
+  if (!allowed.includes(role || 'inputter')) return res.status(400).json({ error: 'Invalid role' });
   if (String(password).length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
@@ -108,7 +108,7 @@ export async function updateUser(req, res) {
   const { status, role, name, phone } = req.body;
   const data = {};
   if (status) data.status = status;
-  if (role && ['admin', 'user'].includes(role)) {
+  if (role && ['admin', 'inputter', 'recommender', 'verifier'].includes(role)) {
     data.role = role;
     await auth.setCustomUserClaims(uid, { role });
   }

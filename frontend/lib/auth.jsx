@@ -73,7 +73,14 @@ export function useAuthGuard(role) {
   useEffect(() => {
     if (!loading && !user) window.location.href = '/login';
     if (!loading && user && role && user.role !== role) {
-      window.location.href = user.role === 'admin' ? '/admin' : '/driver';
+      // Route based on role
+      const roleRoutes = {
+        admin: '/admin',
+        inputter: '/inputter',
+        recommender: '/recommender',
+        verifier: '/verifier'
+      };
+      window.location.href = roleRoutes[user.role] || '/login';
     }
   }, [loading, user, role]);
   return { user, loading };

@@ -14,7 +14,7 @@ export async function authenticate(req, res, next) {
       userDoc = snap.exists ? snap.data() : null;
     } catch (_) { /* ignore */ }
 
-    const role = userDoc?.role || decoded.role || 'user';
+    const role = userDoc?.role || decoded.role || 'inputter';
     req.user = { uid: decoded.uid, email: decoded.email || userDoc?.email, role, data: userDoc };
     req.firebaseUser = decoded;
     next();
@@ -31,3 +31,7 @@ export const allowRoles = (...roles) => (req, res, next) => {
 };
 
 export const requireAdmin = allowRoles('admin');
+export const requireInputter = allowRoles('inputter', 'admin');
+export const requireRecommender = allowRoles('recommender', 'admin');
+export const requireVerifier = allowRoles('verifier', 'admin');
+export const requireWorkflowUser = allowRoles('inputter', 'recommender', 'verifier', 'admin');

@@ -25,7 +25,13 @@ export default function LoginPage() {
       }
       const user = await signIn(loginEmail, password);
       notify(`Welcome back, ${user.name}`);
-      router.push(user.role === 'admin' ? '/admin' : '/driver');
+      const roleRoutes = {
+        admin: '/admin',
+        inputter: '/inputter',
+        recommender: '/recommender',
+        verifier: '/verifier'
+      };
+      router.push(roleRoutes[user.role] || '/login');
     } catch (err) {
       setError(err.message || 'Invalid credentials');
       if (!(err instanceof ApiError)) notify(err.message || 'Login failed', 'error');
@@ -44,7 +50,7 @@ export default function LoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 17h14M5 17a2 2 0 010-4V7a2 2 0 012-2h10a2 2 0 012 2v6a2 2 0 010 4M5 17a2 2 0 002 2h10a2 2 0 002-2" />
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-slate-900">Fleet Manager</h1>
+            <h1 className="text-xl font-bold text-slate-900">Equipment Management</h1>
             <p className="mt-1 text-sm text-slate-500">Sign in to your account</p>
           </div>
 

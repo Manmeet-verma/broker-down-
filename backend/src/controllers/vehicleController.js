@@ -4,10 +4,11 @@ import {
 } from '../db/index.js';
 import { uploadFile, deleteStoredFile, readStoredFile } from '../services/storage.js';
 
-const DOC_TYPES = ['invoice', 'rc', 'insurance', 'pollution', 'noc', 'permit', 'tax', 'other'];
+const DOC_TYPES = ['invoice', 'rc', 'insurance', 'pollution', 'noc', 'permit', 'tax', 'other', 'ownership', 'loan_schedule', 'joining_form'];
 const DOC_LABELS = {
   invoice: 'Invoice', rc: 'RC', insurance: 'Insurance', pollution: 'Pollution Certificate',
-  noc: 'N/P / NOC', permit: 'State Permit', tax: 'Tax Receipt', other: 'Other'
+  noc: 'N/P / NOC', permit: 'State Permit', tax: 'Tax Receipt', other: 'Other',
+  ownership: 'Ownership', loan_schedule: 'Loan Schedule', joining_form: 'Joining Form'
 };
 
 const toISO = (v) => {
@@ -23,7 +24,6 @@ const toDate = (v) => {
   return null;
 };
 
-/* --------------------------------------------- serializers */
 function serializeVehicle(snap) {
   const data = snap.data() || {};
   const out = { ...data, id: snap.id };
@@ -34,6 +34,15 @@ function serializeVehicle(snap) {
     out[k].validTo = toISO(out[k].validTo);
   }
   out.finance = { ...(data.finance || {}) };
+  out.supply = { ...(data.supply || {}) };
+  out.invoice = { ...(data.invoice || {}) };
+  out.agentDetails = { ...(data.agentDetails || {}) };
+  out.trallow = { ...(data.trallow || {}) };
+  out.workingSite = { ...(data.workingSite || {}) };
+  out.ownershipHistory = (data.ownershipHistory || []).map(h => ({
+    ...h, changedAt: toISO(h.changedAt)
+  }));
+  out.taxes = (data.taxes || []).map(t => ({ ...t }));
   out.createdAt = toISO(data.createdAt);
   out.updatedAt = toISO(data.updatedAt);
   out.docsStatus = computedStatus(out);
@@ -43,21 +52,11 @@ function serializeVehicle(snap) {
 function serializeVehicleDoc(doc) {
   const d = doc.data();
   return {
-    id: doc.id,
-    type: d.type,
-    label: d.label,
-    name: d.originalName || d.name,
-    storagePath: d.storagePath,
-    url: d.url,
-    mime: d.mimeType || d.mime,
-    size: d.size,
-    expiryDate: toISO(d.expiryDate),
-    note: d.note,
-    version: d.version || 1,
-    active: d.active !== false,
-    uploadedBy: d.uploadedBy,
-    createdAt: toISO(d.createdAt),
-    replacedAt: toISO(d.replacedAt)
+    id: doc.id, type: d.type, label: d.label, name: d.originalName || d.name,
+    storagePath: d.storagePath, url: d.url, mime: d.mimeType || d.mime,
+    size: d.size, expiryDate: toISO(d.expiryDate), note: d.note,
+    version: d.version || 1, active: d.active !== false,
+    uploadedBy: d.uploadedBy, createdAt: toISO(d.createdAt), replacedAt: toISO(d.replacedAt)
   };
 }
 
@@ -67,107 +66,134 @@ function computedStatus(v) {
     insurance: docStatusOf(v.insurance),
     pollution: docStatusOf(v.pollution),
     permit: docStatusOf(v.permit),
-    tax: docStatusOf(v.tax)
+    tax: docStatusOf(v.tax),
+    nationalPermit: docStatusOf(v.nationalPermit)
   };
 }
 
 function docStatusOf(section) {
   const s = section || {};
-  if (!s.done) return 'not_done';
-  if (!s.validTo) return 'not_done';
-  const left = Math.round((new Date(s.validTo).getTime() - Date.now()) / 86400000);
+  if (s.done === false) return 'not_done';
+  if (!s.validTo && !s.period) return 'not_done';
+  const date = s.validTo || s.period;
+  if (!date) return 'not_done';
+  const left = Math.round((new Date(date).getTime() - Date.now()) / 86400000);
   if (left < 0) return 'expired';
   if (left <= 30) return 'expiring';
   return 'valid';
 }
 
-/* --------------------------------------------- validation */
-function validateVehiclePayload(body) {
-  const required = [
-    ['vehicleNumber', 'Vehicle Number'],
-    ['rcNumber', 'RC Number'],
-    ['engineNumber', 'Engine Number'],
-    ['chassisNumber', 'Chassis Number'],
-    ['make', 'Make'],
-    ['model', 'Model']
-  ];
-  const errors = [];
-  for (const [field, label] of required) {
-    if (!String(body[field] || '').trim()) errors.push(`${label} is required`);
-  }
-  const vn = String(body.vehicleNumber || '').replace(/\s+/g, '').toUpperCase();
-  if (vn && !/^[A-Z]{2}\d{1,2}[A-Z]{0,2}\d{3,4}$/.test(vn)) {
-    errors.push('Vehicle Number must be a valid Indian registration, e.g. PB10AB1234');
-  }
-  const email = String(body.financeEmail || '').trim();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errors.push('Finance email is invalid');
-  const phone = String(body.financePhone || '').trim();
-  if (phone && !/^[0-9+\s-]{7,15}$/.test(phone)) errors.push('Finance phone is invalid');
-  return { errors, vehicleNumber: vn };
-}
-
-function buildSections(body) {
-  return {
-    rc: {
-      number: String(body.rcNumber || '').trim(),
-      validFrom: toDate(body.rcValidFrom),
-      validTo: toDate(body.rcValidTo),
-      done: true
-    },
-    insurance: {
-      company: String(body.insuranceCompany || '').trim(),
-      policyNo: String(body.insurancePolicyNo || '').trim(),
-      validFrom: toDate(body.insuranceValidFrom),
-      validTo: toDate(body.insuranceValidTo),
-      done: !body.insuranceNotDone,
-      reason: body.insuranceNotDone ? String(body.insuranceReason || '').trim() : ''
-    },
-    pollution: {
-      number: String(body.pollutionNumber || '').trim(),
-      validFrom: toDate(body.pollutionValidFrom),
-      validTo: toDate(body.pollutionValidTo),
-      done: !body.pollutionNotDone
-    },
-    permit: {
-      number: String(body.permitNumber || '').trim(),
-      validFrom: toDate(body.permitValidFrom),
-      validTo: toDate(body.permitValidTo),
-      done: !body.permitNotDone
-    },
-    tax: {
-      type: String(body.taxType || '').trim(),
-      receiptNo: String(body.taxReceiptNumber || '').trim(),
-      validFrom: toDate(body.taxValidFrom),
-      validTo: toDate(body.taxValidTo),
-      done: !body.taxNotDone
-    },
-    finance: {
-      company: String(body.financeCompany || '').trim(),
-      agent: String(body.financeAgent || '').trim(),
-      phone: String(body.financePhone || '').trim(),
-      email: String(body.financeEmail || '').trim(),
-      gst: String(body.financeGst || '').trim().toUpperCase(),
-      notes: String(body.financeNotes || '').trim()
-    }
-  };
-}
-
 function buildVehicleDoc(body, actor) {
-  const sections = buildSections(body);
+  const p = (v) => String(v || '').trim();
+  const n = (v) => v ? Number(v) : null;
+
   return {
-    vehicleNumber: body.vehicleNumber,
-    company: String(body.company || '').trim(),
-    customerNumber: String(body.customerNumber || '').trim(),
-    typeOfEquipment: String(body.typeOfEquipment || '').trim(),
-    rcNumber: String(body.rcNumber || '').trim(),
-    poNumber: String(body.poNumber || '').trim(),
-    engineNumber: String(body.engineNumber || '').trim(),
-    chassisNumber: String(body.chassisNumber || '').trim(),
-    make: String(body.make || '').trim(),
-    model: String(body.model || '').trim(),
-    loadingSite: String(body.loadingSite || '').trim(),
-    status: body.status || 'active',
-    ...sections,
+    categoryId: p(body.categoryId), categoryName: p(body.categoryName),
+    type: p(body.type) || 'company',
+    vehicleNumber: p(body.vehicleNumber), serialNumber: p(body.serialNumber),
+    applicableNoType: p(body.applicableNoType) || 'serial',
+    applicableSerialNo: p(body.applicableSerialNo), applicableRcNo: p(body.applicableRcNo),
+    engineNumber: p(body.engineNumber), chassisNumber: p(body.chassisNumber),
+    make: p(body.make), model: p(body.model),
+    ownershipId: p(body.ownershipId), ownershipName: p(body.ownershipName),
+    ownershipHistory: body.ownershipHistory || [],
+
+    supply: {
+      supplierName: p(body.supplySupplierName),
+      salesValue: n(body.supplySalesValue),
+      gstPercent: n(body.supplyGstPercent),
+      gstAmount: n(body.supplyGstAmount),
+      totalAmount: n(body.supplyTotalAmount),
+      tcs: n(body.supplyTcs),
+      otherLabel: p(body.supplyOtherLabel),
+      otherAmount: n(body.supplyOtherAmount)
+    },
+
+    invoice: {
+      invoiceNo: p(body.invoiceInvoiceNo),
+      invoiceDate: p(body.invoiceInvoiceDate),
+      buyerBilling: p(body.invoiceBuyerBilling),
+      buyerGstNo: p(body.invoiceBuyerGstNo),
+      buyerAddress: p(body.invoiceBuyerAddress),
+      rcValidFrom: p(body.invoiceRcValidFrom),
+      rcValidTo: p(body.invoiceRcValidTo)
+    },
+
+    insurance: {
+      companyId: p(body.insuranceCompanyId),
+      companyName: p(body.insuranceCompanyName),
+      premiumAmount: n(body.insurancePremiumAmount),
+      gstPercent: n(body.insuranceGstPercent),
+      gstAmount: n(body.insuranceGstAmount),
+      totalAmount: n(body.insuranceTotalAmount),
+      applicable: body.insuranceApplicable !== false,
+      validFrom: toDate(body.insuranceValidFrom),
+      validTo: toDate(body.insuranceValidTo)
+    },
+
+    insuranceType: { id: p(body.insuranceTypeId), name: p(body.insuranceTypeName) },
+    insurancePeriod: p(body.insurancePeriod),
+
+    agentDetails: {
+      name: p(body.agentName), code: p(body.agentCode), email: p(body.agentEmail),
+      invoiceNo: p(body.agentInvoiceNo), gstAmount: n(body.agentGstAmount),
+      totalValue: n(body.agentTotalValue)
+    },
+
+    pollution: {
+      applicable: body.pollutionApplicable !== false,
+      period: p(body.pollutionPeriod),
+      validTo: toDate(body.pollutionPeriodEnd)
+    },
+
+    statePeriod: {
+      applicable: body.statePeriodApplicable === true,
+      period: p(body.statePeriodPeriod),
+      validTo: toDate(body.statePeriodPeriodEnd)
+    },
+
+    nationalPermit: {
+      applicable: body.nationalPermitApplicable === true,
+      period: p(body.nationalPermitPeriod),
+      validTo: toDate(body.nationalPermitPeriodEnd)
+    },
+
+    equipmentFinanced: body.equipmentFinanced === true,
+    equipmentFree: body.equipmentFree !== false,
+    finance: {
+      financedBy: p(body.financeFinancedBy),
+      financedAmount: n(body.financeFinancedAmount),
+      earnestMoney: n(body.financeEarnestMoney),
+      totalPercent: n(body.financeTotalPercent),
+      installmentCountId: p(body.financeInstallmentCountId),
+      installmentCount: p(body.financeInstallmentCount),
+      installmentFree: body.financeInstallmentFree === true,
+      emailFinancer: p(body.financeEmailFinancer)
+    },
+
+    taxes: body.taxes || [],
+
+    workingSite: {
+      reason: p(body.workingSiteReason),
+      orderBy: p(body.workingSiteOrderBy)
+    },
+
+    transmitInsurance: body.transmitInsurance === true,
+    evApplicable: body.evApplicable === true,
+    challanApplicable: body.challanApplicable === true,
+    billApplicable: body.billApplicable === true,
+
+    trallow: {
+      applicable: body.trallowApplicable === true,
+      trallowNo: p(body.trallowNo),
+      trallowName: p(body.trallowName),
+      freightAmount: n(body.trallowFreightAmount)
+    },
+
+    workflowStage: 'inputter',
+    workflowHistory: [],
+    status: 'active',
+
     createdBy: actor?.uid || null,
     updatedBy: actor?.uid || null
   };
@@ -175,43 +201,39 @@ function buildVehicleDoc(body, actor) {
 
 const actorName = (user) => (user && (user.data?.name || user.name || user.email)) || 'Unknown';
 
-/* --------------------------------------------- handlers */
 export async function listVehicles(req, res) {
-  const { search = '', status = '', page = 1, limit = 20 } = req.query;
+  const { search = '', status = '', workflow = '', page = 1, limit = 50 } = req.query;
   let snapshot;
 
-  if (req.user.role === 'user') {
+  if (req.user.role !== 'admin') {
     const driverId = req.user.data?.driverId;
     const shifts = driverId
       ? await db.collection(COLLECTIONS.shifts).where('driverId', '==', driverId).where('active', '==', true).get()
       : { docs: [] };
     const ids = shifts.docs.map((s) => s.data().vehicleId).filter(Boolean);
-    if (!ids.length) return res.json({ vehicles: [], total: 0, page: 1, pages: 1 });
-    const parts = await Promise.all(
-      ids.slice(0, 10).map((id) => db.collection(COLLECTIONS.vehicles).doc(id).get())
-    );
-    snapshot = { docs: parts.filter((d) => d.exists), size: parts.filter((d) => d.exists).length };
+    if (!ids.length && req.user.role !== 'admin') return res.json({ vehicles: [], total: 0, page: 1, pages: 1 });
+    if (ids.length) {
+      const parts = await Promise.all(ids.slice(0, 30).map((id) => db.collection(COLLECTIONS.vehicles).doc(id).get()));
+      snapshot = { docs: parts.filter((d) => d.exists), size: parts.filter((d) => d.exists).length };
+    } else {
+      snapshot = await db.collection(COLLECTIONS.vehicles).where('deleted', '==', false).get();
+    }
   } else {
     snapshot = await db.collection(COLLECTIONS.vehicles).where('deleted', '==', false).get();
   }
 
   let vehicles = snapshot.docs.map(serializeVehicle);
-
   const q = String(search || '').trim().toLowerCase();
   if (q) {
     vehicles = vehicles.filter((v) =>
-      [v.vehicleNumber, v.rcNumber, v.engineNumber, v.chassisNumber, v.company, v.customerNumber,
-        v.make, v.model, v.rc?.number, v.insurance?.policyNo].join(' ').toLowerCase().includes(q));
+      [v.vehicleNumber, v.serialNumber, v.engineNumber, v.chassisNumber, v.company, v.make, v.model,
+       v.insurance?.companyName, v.categoryName, v.ownershipName].filter(Boolean).join(' ').toLowerCase().includes(q)
+    );
   }
-  if (status) {
-    vehicles = vehicles.filter((v) => {
-      if (v.status === status || v.overview?.status === status) return true;
-      return Object.values(v.docsStatus).some((s) => s === status);
-    });
-  }
-  vehicles.forEach((v) => {
-    v.overview = overviewOf(v);
-  });
+  if (status) vehicles = vehicles.filter((v) => v.status === status || Object.values(v.docsStatus || {}).includes(status));
+  if (workflow) vehicles = vehicles.filter((v) => (v.workflowStage || 'inputter') === workflow);
+
+  vehicles.forEach((v) => { v.overview = overviewOf(v); });
 
   const total = vehicles.length;
   const pages = Math.max(1, Math.ceil(total / Number(limit)));
@@ -221,36 +243,55 @@ export async function listVehicles(req, res) {
 }
 
 function overviewOf(v) {
-  const st = Object.values(v.docsStatus);
+  const st = Object.values(v.docsStatus || {});
   const expired = st.filter((s) => s === 'expired').length;
   const expiring = st.filter((s) => s === 'expiring').length;
   if (v.status === 'sold') return { status: 'sold', label: 'Sold / Transferred' };
   if (v.status === 'inactive') return { status: 'inactive', label: 'Inactive' };
   if (expired >= 2) return { status: 'expired', label: 'Multiple Documents Expired' };
-  if (expired === 1) {
-    const key = Object.keys(v.docsStatus).find((k) => v.docsStatus[k] === 'expired');
-    return { status: 'expired', label: `${key[0].toUpperCase()}${key.slice(1)} Expired` };
-  }
+  if (expired === 1) return { status: 'expired', label: 'Document Expired' };
   if (expiring > 0) return { status: 'expiring', label: 'Documents Expiring' };
-  if (v.status === 'under_finance' || (v.finance && v.finance.company)) {
-    return { status: 'under_finance', label: 'Under Finance' };
-  }
   return { status: 'active', label: 'Active' };
 }
 
 export async function createVehicle(req, res) {
-  const { errors, vehicleNumber } = validateVehiclePayload(req.body);
-  if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+  const body = { ...req.body };
+  if (req.files && req.files.length) {
+    for (const f of req.files) {
+      if (body[f.fieldname]) continue;
+      const stored = await uploadFile(f.buffer, {
+        folder: `vehicles/temp/documents`, originalName: f.originalname, mimeType: f.mimetype
+      });
+      if (!body._pendingUploads) body._pendingUploads = [];
+      body._pendingUploads.push({ field: f.fieldname, ...stored });
+    }
+  }
 
-  const doc = buildVehicleDoc({ ...req.body, vehicleNumber }, req.user);
+  const vn = String(body.vehicleNumber || '').trim().toUpperCase();
+  if (!vn) return res.status(400).json({ error: 'Vehicle number is required' });
+
+  const doc = buildVehicleDoc({ ...body, vehicleNumber: vn }, req.user);
   const ref = await db.collection(COLLECTIONS.vehicles).add({
     ...doc, deleted: false, createdAt: new Date(), updatedAt: new Date()
   });
+
+  if (body._pendingUploads) {
+    for (const upload of body._pendingUploads) {
+      const newFolder = `vehicles/${ref.id}/documents`;
+      const newPath = upload.path.replace('vehicles/temp/', `vehicles/${ref.id}/`);
+      const docRef = vehicleDocsRef(ref.id).doc();
+      await docRef.set({
+        type: upload.field, label: DOC_LABELS[upload.field] || upload.field,
+        originalName: upload.originalName, storagePath: newPath,
+        url: upload.url, mimeType: upload.mimeType, size: upload.size,
+        version: 1, active: true, uploadedBy: actorName(req.user), createdAt: new Date()
+      });
+    }
+  }
+
   await pushHistory(vehicleHistoryRef(ref.id), {
-    action: 'Vehicle created',
-    details: `${doc.vehicleNumber} was added`,
-    actorId: req.user.uid,
-    actorName: actorName(req.user)
+    action: 'Vehicle created', details: `${vn} was added by ${actorName(req.user)}`,
+    actorId: req.user.uid, actorName: actorName(req.user)
   });
   res.status(201).json({ vehicle: serializeVehicle(await ref.get()) });
 }
@@ -262,15 +303,14 @@ export async function getVehicle(req, res) {
 
   const [docsS, histS] = await Promise.all([
     vehicleDocsRef(id).orderBy('createdAt', 'desc').get(),
-    vehicleHistoryRef(id).orderBy('createdAt', 'desc').limit(200).get()
+    vehicleHistoryRef(id).orderBy('createdAt', 'desc').limit(500).get()
   ]);
 
   const vehicle = serializeVehicle(snap);
-  const documents = docsS.docs.filter((d) => d.data().active !== false).map(serializeVehicleDoc);
-  const archivedDocuments = docsS.docs.filter((d) => d.data().active === false).map(serializeVehicleDoc);
-  const history = histS.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toISO(d.data().createdAt) }));
-
-  res.json({ vehicle: { ...vehicle, documents, archivedDocuments, history } });
+  vehicle.documents = docsS.docs.filter((d) => d.data().active !== false).map(serializeVehicleDoc);
+  vehicle.archivedDocuments = docsS.docs.filter((d) => d.data().active === false).map(serializeVehicleDoc);
+  vehicle.history = histS.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toISO(d.data().createdAt) }));
+  res.json({ vehicle });
 }
 
 export async function updateVehicle(req, res) {
@@ -278,17 +318,23 @@ export async function updateVehicle(req, res) {
   const snap = await vehicleDocRef(id).get();
   if (!snap.exists) return res.status(404).json({ error: 'Vehicle not found' });
 
-  const { errors, vehicleNumber } = validateVehiclePayload(req.body);
-  if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+  const body = { ...req.body };
+  const vn = String(body.vehicleNumber || snap.data().vehicleNumber || '').trim().toUpperCase();
+  const doc = buildVehicleDoc({ ...body, vehicleNumber: vn }, req.user);
 
-  const doc = buildVehicleDoc({ ...req.body, vehicleNumber }, req.user);
+  const changes = [];
+  const oldData = snap.data();
+  for (const key of ['categoryId', 'type', 'vehicleNumber', 'make', 'model', 'ownershipName']) {
+    if (doc[key] !== oldData[key]) changes.push(key);
+  }
+  if (changes.length) {
+    await pushHistory(vehicleHistoryRef(id), {
+      action: 'Vehicle updated', details: `Updated: ${changes.join(', ')}`,
+      actorId: req.user.uid, actorName: actorName(req.user)
+    });
+  }
+
   await vehicleDocRef(id).update({ ...doc, updatedAt: new Date(), updatedBy: req.user.uid });
-  await pushHistory(vehicleHistoryRef(id), {
-    action: 'Vehicle updated',
-    details: `${doc.vehicleNumber} details were updated`,
-    actorId: req.user.uid,
-    actorName: actorName(req.user)
-  });
   res.json({ vehicle: serializeVehicle(await vehicleDocRef(id).get()) });
 }
 
@@ -299,15 +345,87 @@ export async function deleteVehicle(req, res) {
 
   await vehicleDocRef(id).update({ deleted: true, deletedAt: new Date(), updatedBy: req.user.uid });
   await pushHistory(vehicleHistoryRef(id), {
-    action: 'Vehicle archived',
-    details: `${snap.data().vehicleNumber} was archived`,
-    actorId: req.user.uid,
-    actorName: actorName(req.user)
+    action: 'Vehicle archived', details: `${snap.data().vehicleNumber} was archived`,
+    actorId: req.user.uid, actorName: actorName(req.user)
   });
   res.json({ ok: true });
 }
 
-/* ---------------- documents ---------------- */
+export async function workflowAction(req, res) {
+  const { id } = req.params;
+  const { action, note } = req.body;
+  const snap = await vehicleDocRef(id).get();
+  if (!snap.exists) return res.status(404).json({ error: 'Vehicle not found' });
+
+  const data = snap.data();
+  const stage = data.workflowStage || 'inputter';
+  const role = req.user.role;
+  let newStage = stage;
+
+  if (action === 'recommend' && (role === 'recommender' || role === 'admin') && stage === 'inputter') {
+    newStage = 'recommended';
+  } else if (action === 'verify' && (role === 'verifier' || role === 'admin') && stage === 'recommended') {
+    newStage = 'verified';
+  } else if (action === 'approve' && role === 'admin' && stage === 'verified') {
+    newStage = 'approved';
+  } else if (action === 'reject' && ['recommender', 'verifier', 'admin'].includes(role)) {
+    newStage = 'inputter';
+  } else {
+    return res.status(400).json({ error: `Cannot ${action} at stage ${stage} with role ${role}` });
+  }
+
+  const historyEntry = {
+    stage: newStage, action, note: note || '',
+    by: actorName(req.user), byId: req.user.uid, at: new Date()
+  };
+
+  const currentHistory = data.workflowHistory || [];
+  await vehicleDocRef(id).update({
+    workflowStage: newStage, workflowHistory: [...currentHistory, historyEntry],
+    updatedAt: new Date(), updatedBy: req.user.uid
+  });
+
+  await pushHistory(vehicleHistoryRef(id), {
+    action: `Workflow: ${action}`, details: `Stage changed to ${newStage}${note ? ': ' + note : ''}`,
+    actorId: req.user.uid, actorName: actorName(req.user)
+  });
+
+  res.json({ ok: true, workflowStage: newStage });
+}
+
+export async function getExpiringDocuments(req, res) {
+  const { days = 30 } = req.params;
+  const snapshot = await db.collection(COLLECTIONS.vehicles).where('deleted', '==', false).get();
+  const vehicles = snapshot.docs.map(serializeVehicle);
+  const cutoff = Number(days);
+  const expiring = [];
+
+  for (const v of vehicles) {
+    const docs = ['rc', 'insurance', 'pollution', 'permit', 'tax', 'nationalPermit'];
+    for (const doc of docs) {
+      const section = v[doc];
+      if (!section) continue;
+      const date = section.validTo || section.period;
+      if (!date) continue;
+      const daysLeft = Math.round((new Date(date).getTime() - Date.now()) / 86400000);
+      if (daysLeft <= cutoff) {
+        expiring.push({
+          vehicleId: v.id, vehicleNumber: v.vehicleNumber, documentType: doc,
+          validTo: date, daysLeft, status: daysLeft < 0 ? 'expired' : 'expiring'
+        });
+      }
+    }
+  }
+  expiring.sort((a, b) => a.daysLeft - b.daysLeft);
+  res.json({ expiring });
+}
+
+export async function vehicleHistory(req, res) {
+  const { id } = req.params;
+  const hist = await vehicleHistoryRef(id).orderBy('createdAt', 'desc').limit(500).get();
+  res.json({ history: hist.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toISO(d.data().createdAt) })) });
+}
+
 export async function uploadDocument(req, res) {
   const { id } = req.params;
   const v = await vehicleDocRef(id).get();
@@ -315,35 +433,20 @@ export async function uploadDocument(req, res) {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const type = req.body.type || 'other';
-  if (!DOC_TYPES.includes(type)) return res.status(400).json({ error: 'Invalid document type' });
-
   const stored = await uploadFile(req.file.buffer, {
-    folder: `vehicles/${id}/documents`,
-    originalName: req.file.originalname,
-    mimeType: req.file.mimetype
+    folder: `vehicles/${id}/documents`, originalName: req.file.originalname, mimeType: req.file.mimetype
   });
 
   const ref = vehicleDocsRef(id).doc();
   await ref.set({
-    type,
-    label: DOC_LABELS[type] || type,
-    originalName: stored.originalName,
-    storagePath: stored.path,
-    url: stored.url,
-    mimeType: stored.mimeType,
-    size: stored.size,
-    expiryDate: toDate(req.body.expiryDate),
-    note: String(req.body.note || '').trim(),
-    version: 1,
-    active: true,
-    uploadedBy: actorName(req.user),
-    createdAt: new Date()
+    type, label: DOC_LABELS[type] || type, originalName: stored.originalName,
+    storagePath: stored.path, url: stored.url, mimeType: stored.mimeType, size: stored.size,
+    expiryDate: toDate(req.body.expiryDate), note: String(req.body.note || '').trim(),
+    version: 1, active: true, uploadedBy: actorName(req.user), createdAt: new Date()
   });
   await pushHistory(vehicleHistoryRef(id), {
-    action: 'Document uploaded',
-    details: `${stored.originalName} uploaded`,
-    actorId: req.user.uid,
-    actorName: actorName(req.user)
+    action: 'Document uploaded', details: `${stored.originalName} uploaded`,
+    actorId: req.user.uid, actorName: actorName(req.user)
   });
   res.status(201).json({ document: serializeVehicleDoc(await ref.get()) });
 }
@@ -357,9 +460,7 @@ export async function replaceDocument(req, res) {
   if (!oldSnap.exists) return res.status(404).json({ error: 'Document not found' });
 
   const stored = await uploadFile(req.file.buffer, {
-    folder: `vehicles/${id}/documents`,
-    originalName: req.file.originalname,
-    mimeType: req.file.mimetype
+    folder: `vehicles/${id}/documents`, originalName: req.file.originalname, mimeType: req.file.mimetype
   });
 
   const old = oldSnap.data();
@@ -367,26 +468,15 @@ export async function replaceDocument(req, res) {
 
   const ref = vehicleDocsRef(id).doc();
   await ref.set({
-    ...old,
-    originalName: stored.originalName,
-    storagePath: stored.path,
-    url: stored.url,
-    mimeType: stored.mimeType,
-    size: stored.size,
-    version: (old.version || 1) + 1,
-    active: true,
-    previousDocId: docId,
-    uploadedBy: actorName(req.user),
-    expiryDate: old.expiryDate || toDate(req.body.expiryDate),
-    note: req.body.note !== undefined ? String(req.body.note).trim() : old.note,
-    createdAt: new Date()
+    ...old, originalName: stored.originalName, storagePath: stored.path,
+    url: stored.url, mimeType: stored.mimeType, size: stored.size,
+    version: (old.version || 1) + 1, active: true, previousDocId: docId,
+    uploadedBy: actorName(req.user), expiryDate: old.expiryDate || toDate(req.body.expiryDate),
+    note: req.body.note !== undefined ? String(req.body.note).trim() : old.note, createdAt: new Date()
   });
-
   await pushHistory(vehicleHistoryRef(id), {
-    action: 'Document replaced',
-    details: `Replaced ${old.originalName} with ${stored.originalName}`,
-    actorId: req.user.uid,
-    actorName: actorName(req.user)
+    action: 'Document replaced', details: `Replaced ${old.originalName} with ${stored.originalName}`,
+    actorId: req.user.uid, actorName: actorName(req.user)
   });
   res.status(201).json({ document: serializeVehicleDoc(await ref.get()) });
 }
@@ -396,35 +486,21 @@ export async function deleteDocument(req, res) {
   const ref = vehicleDocsRef(id).doc(docId);
   const snap = await ref.get();
   if (!snap.exists) return res.status(404).json({ error: 'Document not found' });
-
   await ref.update({ active: false, deletedAt: new Date() });
   await deleteStoredFile(snap.data().storagePath);
   await pushHistory(vehicleHistoryRef(id), {
-    action: 'Document deleted',
-    details: `Deleted ${snap.data().originalName}`,
-    actorId: req.user.uid,
-    actorName: actorName(req.user)
+    action: 'Document deleted', details: `Deleted ${snap.data().originalName}`,
+    actorId: req.user.uid, actorName: actorName(req.user)
   });
   res.json({ ok: true });
 }
 
-export async function vehicleHistory(req, res) {
-  const { id } = req.params;
-  const hist = await vehicleHistoryRef(id).orderBy('createdAt', 'desc').limit(300).get();
-  res.json({
-    history: hist.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toISO(d.data().createdAt) }))
-  });
-}
-
-/** GET /api/vehicles/:id/documents/:docId/download — streams the stored file */
 export async function downloadDocument(req, res) {
   const { id, docId } = req.params;
   const snap = await vehicleDocsRef(id).doc(docId).get();
   if (!snap.exists) return res.status(404).json({ error: 'Document not found' });
-
   const stored = await readStoredFile(snap.data().storagePath);
   if (!stored) return res.status(404).json({ error: 'File no longer exists in storage' });
-
   res.setHeader('Content-Type', stored.contentType);
   res.setHeader('Content-Disposition', `attachment; filename="${stored.originalName.replace(/"/g, '')}"`);
   res.send(stored.buffer);

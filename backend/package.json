@@ -1,14 +1,15 @@
 {
   "name": "fleet-backend",
   "version": "1.0.0",
-  "description": "Vehicle Management backend - Firebase Admin + Express REST API",
+  "description": "Equipment Management backend - Firebase Admin + Express REST API",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/scripts/seedAdmin.js",
-    "seed:demo": "node src/scripts/seedDemo.js"
+    "seed:demo": "node src/scripts/seedDemo.js",
+    "seed:accounts": "node src/scripts/seedDemoAccounts.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

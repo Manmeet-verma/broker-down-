@@ -3,8 +3,8 @@ import { ToastProvider } from '@/components/ui';
 import './globals.css';
 
 export const metadata = {
-  title: 'Fleet Manager — Vehicle & Driver Management',
-  description: 'Vehicle documentation, drivers, shifts and issue management'
+  title: 'Equipment Management',
+  description: 'Equipment documentation, drivers, shifts and issue management'
 };
 
 export default function RootLayout({ children }) {
