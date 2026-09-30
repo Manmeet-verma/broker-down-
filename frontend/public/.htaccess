@@ -1,0 +1,26 @@
+# SPA fallback for Apache / Hostinger shared hosting.
+# Required because the app uses client-side routes like /admin/drivers/abc123
+# Direct hits or refreshes on those paths must serve index.html, not a 404.
+# (Firebase Hosting did this via a rewrite rule in firebase.json; Apache needs this.)
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Never rewrite real files or directories that exist on disk
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>

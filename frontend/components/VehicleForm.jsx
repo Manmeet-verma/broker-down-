@@ -60,6 +60,111 @@ const emptyForm = {
   taxes: []
 };
 
+function toDateInput(value) {
+  if (!value) return '';
+  if (typeof value === 'object' && typeof value.toDate === 'function') {
+    return value.toDate().toISOString().slice(0, 10);
+  }
+  return String(value).slice(0, 10);
+}
+
+export function vehicleToForm(vehicle) {
+  const v = vehicle || {};
+  const ownership = v.ownership || {};
+  const supply = v.supply || {};
+  const invoice = v.invoice || {};
+  const insurance = v.insurance || {};
+  const insuranceType = v.insuranceType || {};
+  const agent = v.agentDetails || {};
+  const pollution = v.pollution || {};
+  const statePeriod = v.statePeriod || {};
+  const nationalPermit = v.nationalPermit || {};
+  const finance = v.finance || {};
+  const workingSite = v.workingSite || {};
+  const trallow = v.trallow || {};
+
+  return {
+    ...emptyForm,
+    categoryId: v.categoryId ?? emptyForm.categoryId,
+    categoryName: v.categoryName ?? emptyForm.categoryName,
+    type: v.type || emptyForm.type,
+    vehicleNumber: v.vehicleNumber ?? emptyForm.vehicleNumber,
+    serialNumber: v.serialNumber ?? emptyForm.serialNumber,
+    applicableNoType: v.applicableNoType || emptyForm.applicableNoType,
+    applicableSerialNo: v.applicableSerialNo ?? emptyForm.applicableSerialNo,
+    applicableRcNo: v.applicableRcNo ?? emptyForm.applicableRcNo,
+    engineNumber: v.engineNumber ?? emptyForm.engineNumber,
+    chassisNumber: v.chassisNumber ?? emptyForm.chassisNumber,
+    make: v.make ?? emptyForm.make,
+    model: v.model ?? emptyForm.model,
+    ownershipId: v.ownershipId ?? ownership.id ?? emptyForm.ownershipId,
+    ownershipName: v.ownershipName ?? ownership.name ?? emptyForm.ownershipName,
+    supplySupplierName: supply.supplierName ?? emptyForm.supplySupplierName,
+    supplySalesValue: supply.salesValue ?? emptyForm.supplySalesValue,
+    supplyGstPercent: supply.gstPercent ?? emptyForm.supplyGstPercent,
+    supplyGstAmount: supply.gstAmount ?? emptyForm.supplyGstAmount,
+    supplyTotalAmount: supply.totalAmount ?? emptyForm.supplyTotalAmount,
+    supplyTcs: supply.tcs ?? emptyForm.supplyTcs,
+    supplyOtherLabel: supply.otherLabel ?? emptyForm.supplyOtherLabel,
+    supplyOtherAmount: supply.otherAmount ?? emptyForm.supplyOtherAmount,
+    invoiceInvoiceNo: invoice.invoiceNo ?? emptyForm.invoiceInvoiceNo,
+    invoiceInvoiceDate: toDateInput(invoice.invoiceDate) || emptyForm.invoiceInvoiceDate,
+    invoiceBuyerBilling: invoice.buyerBilling ?? emptyForm.invoiceBuyerBilling,
+    invoiceBuyerGstNo: invoice.buyerGstNo ?? emptyForm.invoiceBuyerGstNo,
+    invoiceBuyerAddress: invoice.buyerAddress ?? emptyForm.invoiceBuyerAddress,
+    invoiceRcValidFrom: toDateInput(invoice.rcValidFrom) || emptyForm.invoiceRcValidFrom,
+    invoiceRcValidTo: toDateInput(invoice.rcValidTo) || emptyForm.invoiceRcValidTo,
+    insuranceApplicable: insurance.applicable ?? emptyForm.insuranceApplicable,
+    insuranceCompanyId: insurance.companyId ?? emptyForm.insuranceCompanyId,
+    insuranceCompanyName: insurance.companyName ?? emptyForm.insuranceCompanyName,
+    insurancePremiumAmount: insurance.premiumAmount ?? emptyForm.insurancePremiumAmount,
+    insuranceGstPercent: insurance.gstPercent ?? emptyForm.insuranceGstPercent,
+    insuranceGstAmount: insurance.gstAmount ?? emptyForm.insuranceGstAmount,
+    insuranceTotalAmount: insurance.totalAmount ?? emptyForm.insuranceTotalAmount,
+    insuranceTypeId: insuranceType.id ?? emptyForm.insuranceTypeId,
+    insuranceTypeName: insuranceType.name ?? emptyForm.insuranceTypeName,
+    insurancePeriod: v.insurancePeriod ?? emptyForm.insurancePeriod,
+    insuranceValidFrom: toDateInput(insurance.validFrom) || emptyForm.insuranceValidFrom,
+    insuranceValidTo: toDateInput(insurance.validTo) || emptyForm.insuranceValidTo,
+    agentName: agent.name ?? emptyForm.agentName,
+    agentCode: agent.code ?? emptyForm.agentCode,
+    agentEmail: agent.email ?? emptyForm.agentEmail,
+    agentInvoiceNo: agent.invoiceNo ?? emptyForm.agentInvoiceNo,
+    agentGstAmount: agent.gstAmount ?? emptyForm.agentGstAmount,
+    agentTotalValue: agent.totalValue ?? emptyForm.agentTotalValue,
+    pollutionApplicable: pollution.applicable ?? emptyForm.pollutionApplicable,
+    pollutionPeriod: pollution.period ?? emptyForm.pollutionPeriod,
+    pollutionPeriodEnd: toDateInput(pollution.validTo) || emptyForm.pollutionPeriodEnd,
+    statePeriodApplicable: statePeriod.applicable ?? emptyForm.statePeriodApplicable,
+    statePeriodPeriod: statePeriod.period ?? emptyForm.statePeriodPeriod,
+    statePeriodPeriodEnd: toDateInput(statePeriod.validTo) || emptyForm.statePeriodPeriodEnd,
+    nationalPermitApplicable: nationalPermit.applicable ?? emptyForm.nationalPermitApplicable,
+    nationalPermitPeriod: nationalPermit.period ?? emptyForm.nationalPermitPeriod,
+    nationalPermitPeriodEnd: toDateInput(nationalPermit.validTo) || emptyForm.nationalPermitPeriodEnd,
+    equipmentFinanced: v.equipmentFinanced ?? emptyForm.equipmentFinanced,
+    equipmentFree: v.equipmentFree ?? emptyForm.equipmentFree,
+    financeFinancedBy: finance.financedBy ?? emptyForm.financeFinancedBy,
+    financeFinancedAmount: finance.financedAmount ?? emptyForm.financeFinancedAmount,
+    financeEarnestMoney: finance.earnestMoney ?? emptyForm.financeEarnestMoney,
+    financeTotalPercent: finance.totalPercent ?? emptyForm.financeTotalPercent,
+    financeInstallmentCountId: finance.installmentCountId ?? emptyForm.financeInstallmentCountId,
+    financeInstallmentCount: finance.installmentCount ?? emptyForm.financeInstallmentCount,
+    financeInstallmentFree: finance.installmentFree ?? emptyForm.financeInstallmentFree,
+    financeEmailFinancer: finance.emailFinancer ?? emptyForm.financeEmailFinancer,
+    workingSiteReason: workingSite.reason ?? emptyForm.workingSiteReason,
+    workingSiteOrderBy: workingSite.orderBy ?? emptyForm.workingSiteOrderBy,
+    transmitInsurance: v.transmitInsurance ?? emptyForm.transmitInsurance,
+    evApplicable: v.evApplicable ?? emptyForm.evApplicable,
+    challanApplicable: v.challanApplicable ?? emptyForm.challanApplicable,
+    billApplicable: v.billApplicable ?? emptyForm.billApplicable,
+    trallowApplicable: trallow.applicable ?? emptyForm.trallowApplicable,
+    trallowNo: trallow.trallowNo ?? emptyForm.trallowNo,
+    trallowName: trallow.trallowName ?? emptyForm.trallowName,
+    trallowFreightAmount: trallow.freightAmount ?? emptyForm.trallowFreightAmount,
+    taxes: Array.isArray(v.taxes) ? v.taxes : []
+  };
+}
+
 export default function VehicleForm({ initial, vehicleId }) {
   const router = useRouter();
   const [form, setForm] = useState(initial || emptyForm);

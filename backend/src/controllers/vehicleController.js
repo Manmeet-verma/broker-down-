@@ -86,6 +86,8 @@ function docStatusOf(section) {
 function buildVehicleDoc(body, actor) {
   const p = (v) => String(v || '').trim();
   const n = (v) => v ? Number(v) : null;
+  const b = (v) => v === true || v === 'true' || v === 'on' || v === '1' || v === 1;
+  const bd = (v, fallback) => (v === undefined || v === null || v === '' ? fallback : b(v));
 
   return {
     categoryId: p(body.categoryId), categoryName: p(body.categoryName),
@@ -126,7 +128,7 @@ function buildVehicleDoc(body, actor) {
       gstPercent: n(body.insuranceGstPercent),
       gstAmount: n(body.insuranceGstAmount),
       totalAmount: n(body.insuranceTotalAmount),
-      applicable: body.insuranceApplicable !== false,
+      applicable: bd(body.insuranceApplicable, true),
       validFrom: toDate(body.insuranceValidFrom),
       validTo: toDate(body.insuranceValidTo)
     },
@@ -141,25 +143,25 @@ function buildVehicleDoc(body, actor) {
     },
 
     pollution: {
-      applicable: body.pollutionApplicable !== false,
+      applicable: bd(body.pollutionApplicable, true),
       period: p(body.pollutionPeriod),
       validTo: toDate(body.pollutionPeriodEnd)
     },
 
     statePeriod: {
-      applicable: body.statePeriodApplicable === true,
+      applicable: b(body.statePeriodApplicable),
       period: p(body.statePeriodPeriod),
       validTo: toDate(body.statePeriodPeriodEnd)
     },
 
     nationalPermit: {
-      applicable: body.nationalPermitApplicable === true,
+      applicable: b(body.nationalPermitApplicable),
       period: p(body.nationalPermitPeriod),
       validTo: toDate(body.nationalPermitPeriodEnd)
     },
 
-    equipmentFinanced: body.equipmentFinanced === true,
-    equipmentFree: body.equipmentFree !== false,
+    equipmentFinanced: b(body.equipmentFinanced),
+    equipmentFree: bd(body.equipmentFree, true),
     finance: {
       financedBy: p(body.financeFinancedBy),
       financedAmount: n(body.financeFinancedAmount),
@@ -167,7 +169,7 @@ function buildVehicleDoc(body, actor) {
       totalPercent: n(body.financeTotalPercent),
       installmentCountId: p(body.financeInstallmentCountId),
       installmentCount: p(body.financeInstallmentCount),
-      installmentFree: body.financeInstallmentFree === true,
+      installmentFree: b(body.financeInstallmentFree),
       emailFinancer: p(body.financeEmailFinancer)
     },
 
@@ -178,13 +180,13 @@ function buildVehicleDoc(body, actor) {
       orderBy: p(body.workingSiteOrderBy)
     },
 
-    transmitInsurance: body.transmitInsurance === true,
-    evApplicable: body.evApplicable === true,
-    challanApplicable: body.challanApplicable === true,
-    billApplicable: body.billApplicable === true,
+    transmitInsurance: b(body.transmitInsurance),
+    evApplicable: b(body.evApplicable),
+    challanApplicable: b(body.challanApplicable),
+    billApplicable: b(body.billApplicable),
 
     trallow: {
-      applicable: body.trallowApplicable === true,
+      applicable: b(body.trallowApplicable),
       trallowNo: p(body.trallowNo),
       trallowName: p(body.trallowName),
       freightAmount: n(body.trallowFreightAmount)
