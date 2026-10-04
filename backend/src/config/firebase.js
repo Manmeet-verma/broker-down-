@@ -1,45 +1,59 @@
 import { readFileSync, existsSync } from 'node:fs';
+import admin from 'firebase-admin';
 import { ENV } from './env.js';
 
-let firebaseAdmin = null;
+let cachedAdmin = null;
 
-async function initAdmin() {
-  if (firebaseAdmin) return firebaseAdmin;
-  const admin = await import('firebase-admin').then(m => m.default);
+function loadCredentials() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (raw) return JSON.parse(raw);
+  if (existsSync(ENV.serviceAccountPath)) {
+    return JSON.parse(readFileSync(ENV.serviceAccountPath, 'utf8'));
+  }
+  throw new Error(
+    'Firebase credentials not found. Set the FIREBASE_SERVICE_ACCOUNT env var to your service account JSON, ' +
+      `or place the file at ${ENV.serviceAccountPath}.`
+  );
+}
+
+function getAdmin() {
+  if (cachedAdmin) return cachedAdmin;
 
   if (admin.apps.length) {
-    firebaseAdmin = admin;
-    return admin;
-  }
-
-  let credentials;
-  try {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (raw) {
-      credentials = JSON.parse(raw);
-    } else if (existsSync(ENV.serviceAccountPath)) {
-      credentials = JSON.parse(readFileSync(ENV.serviceAccountPath, 'utf8'));
-    } else {
-      throw new Error('No FIREBASE_SERVICE_ACCOUNT env var and file not found');
-    }
-  } catch (err) {
-    console.error('[FATAL] Cannot load service account:', err.message);
-    process.exit(1);
+    cachedAdmin = admin;
+    return cachedAdmin;
   }
 
   admin.initializeApp({
-    credential: admin.credential.cert(credentials),
+    credential: admin.credential.cert(loadCredentials()),
     databaseURL: ENV.firebaseDatabaseURL,
     storageBucket: ENV.storageBucket || undefined
   });
 
-  firebaseAdmin = admin;
-  return admin;
+  cachedAdmin = admin;
+  return cachedAdmin;
 }
 
-const adminInstance = await initAdmin();
+/**
+ * Defers Firebase init until an SDK method is actually called. Importing this
+ * module must not touch credentials: the build imports it to trace the bundle,
+ * and `process.exit`/throw at import time kills the build with no useful log.
+ */
+function lazy(resolve) {
+  return new Proxy(function () {}, {
+    get(_target, prop) {
+      const instance = resolve();
+      const value = instance[prop];
+      return typeof value === 'function' ? value.bind(instance) : value;
+    },
+    apply(_target, _thisArg, args) {
+      const instance = resolve();
+      return Reflect.apply(instance, instance, args);
+    }
+  });
+}
 
-export { adminInstance };
-export const db = adminInstance.firestore();
-export const auth = adminInstance.auth();
-export const bucket = adminInstance.storage().bucket();
+export const adminInstance = lazy(getAdmin);
+export const db = lazy(() => getAdmin().firestore());
+export const auth = lazy(() => getAdmin().auth());
+export const bucket = lazy(() => getAdmin().storage().bucket());
