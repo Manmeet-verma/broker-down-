@@ -1,4 +1,4 @@
-import { auth, db } from '../config/firebase.js';
+import { auth, db, isCredentialsError } from '../config/firebase.js';
 
 /** Verify Firebase ID token and attach { uid, email, role, user } to req */
 export async function authenticate(req, res, next) {
@@ -19,6 +19,12 @@ export async function authenticate(req, res, next) {
     req.firebaseUser = decoded;
     next();
   } catch (err) {
+    // Missing service account is a server misconfiguration, not a bad token:
+    // answering 401 here makes the SPA log the user out in an endless loop.
+    if (isCredentialsError(err)) {
+      console.error('[auth] 503 —', err.message);
+      return res.status(503).json({ error: err.message });
+    }
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }

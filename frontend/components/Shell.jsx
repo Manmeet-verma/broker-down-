@@ -39,18 +39,30 @@ const VERIFIER_NAV = [
   { href: '/verifier/drivers', label: 'Verify Drivers', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' }
 ];
 
+const DRIVER_NAV = [
+  { href: '/driver', label: 'Dashboard', icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10' },
+  { href: '/driver/vehicles', label: 'My Vehicles', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m-12 6h12m0 0l-4-4m4 4l-4 4M4 7h8a1 1 0 011 1v2M4 7v10h4' },
+  { href: '/driver/shifts', label: 'Shifts', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { href: '/driver/issues', label: 'Issues', icon: 'M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { href: '/driver/profile', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' }
+];
+
 const NAV_MAP = {
   admin: ADMIN_NAV,
   inputter: INPUTTER_NAV,
   recommender: RECOMMENDER_NAV,
-  verifier: VERIFIER_NAV
+  verifier: VERIFIER_NAV,
+  user: DRIVER_NAV,
+  driver: DRIVER_NAV
 };
 
 const ROLE_LABELS = {
   admin: 'Administrator',
   inputter: 'Data Inputter',
   recommender: 'Reviewer',
-  verifier: 'Verifier'
+  verifier: 'Verifier',
+  user: 'Driver',
+  driver: 'Driver'
 };
 
 function NavItem({ item, active, onNavigate }) {
@@ -78,7 +90,7 @@ export function Shell({ children, role }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const nav = NAV_MAP[user?.role] || ADMIN_NAV;
+  const nav = NAV_MAP[user?.role] || DRIVER_NAV;
   const roleLabel = ROLE_LABELS[user?.role] || user?.role || 'User';
 
   useEffect(() => {

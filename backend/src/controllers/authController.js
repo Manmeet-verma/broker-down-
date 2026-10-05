@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { auth, db } from '../config/firebase.js';
+import { auth, db, isCredentialsError } from '../config/firebase.js';
 import { userDocRef } from '../db/index.js';
 import { usernameToEmail, isValidEmail } from '../utils/validators.js';
 
@@ -36,6 +36,7 @@ export async function login(req, res) {
 
     res.json({ user: serializeUser(user) });
   } catch (err) {
+    if (isCredentialsError(err)) return res.status(503).json({ error: err.message });
     res.status(401).json({ error: 'Invalid token: ' + err.message });
   }
 }
@@ -53,7 +54,7 @@ export async function me(req, res) {
  */
 export async function createUser(req, res) {
   const { username, password, role, name, phone, status } = req.body;
-  const allowed = ['admin', 'inputter', 'recommender', 'verifier'];
+  const allowed = ['admin', 'inputter', 'recommender', 'verifier', 'user', 'driver'];
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
@@ -108,7 +109,7 @@ export async function updateUser(req, res) {
   const { status, role, name, phone } = req.body;
   const data = {};
   if (status) data.status = status;
-  if (role && ['admin', 'inputter', 'recommender', 'verifier'].includes(role)) {
+  if (role && ['admin', 'inputter', 'recommender', 'verifier', 'user', 'driver'].includes(role)) {
     data.role = role;
     await auth.setCustomUserClaims(uid, { role });
   }

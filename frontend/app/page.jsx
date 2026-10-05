@@ -1,21 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
-
-const ROLE_ROUTES = {
-  admin: '/admin',
-  inputter: '/inputter',
-  recommender: '/recommender',
-  verifier: '/verifier'
-};
+import { useAuth, homeForRole } from '@/lib/auth';
 
 export default function Home() {
   const { user, loading } = useAuth();
 
   useEffect(() => {
     if (!loading) {
-      window.location.href = user ? (ROLE_ROUTES[user.role] || '/login') : '/login';
+      window.location.href = homeForRole(user?.role);
     }
   }, [user, loading]);
 

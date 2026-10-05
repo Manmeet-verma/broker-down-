@@ -13,6 +13,9 @@ export const errorHandler = (err, req, res, _next) => {
   if (err.message && err.message.startsWith('Unsupported file type')) {
     return res.status(400).json({ error: err.message });
   }
+  if (err.code === 'FIREBASE_CREDENTIALS_MISSING') {
+    return res.status(503).json({ error: err.message });
+  }
   const status = err.status || 500;
   res.status(status).json({ error: err.message || 'Internal server error' });
 };

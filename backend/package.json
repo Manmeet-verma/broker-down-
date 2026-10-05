@@ -9,7 +9,8 @@
     "dev": "node --watch src/server.js",
     "seed": "node src/scripts/seedAdmin.js",
     "seed:demo": "node src/scripts/seedDemo.js",
-    "seed:accounts": "node src/scripts/seedDemoAccounts.js"
+    "seed:accounts": "node src/scripts/seedDemoAccounts.js",
+    "env:vercel": "vercel env add FIREBASE_SERVICE_ACCOUNT production --project broker-down --force --value \"$(cat service-account.json)\""
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

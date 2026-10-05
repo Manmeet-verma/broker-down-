@@ -1,42 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
+import { useAuth, homeForRole } from '@/lib/auth';
 import { notify } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, user, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Already signed in (e.g. bounced back here by an old build) → go home.
+  useEffect(() => {
+    if (!loading && user) router.replace(homeForRole(user.role));
+  }, [loading, user, router]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setSubmitting(true);
     try {
       let loginEmail = email.trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)) {
         loginEmail = `${loginEmail.toLowerCase().replace(/[^a-z0-9._-]/g, '')}@fleet.app`;
       }
-      const user = await signIn(loginEmail, password);
-      notify(`Welcome back, ${user.name}`);
-      const roleRoutes = {
-        admin: '/admin',
-        inputter: '/inputter',
-        recommender: '/recommender',
-        verifier: '/verifier'
-      };
-      router.push(roleRoutes[user.role] || '/login');
+      const signedIn = await signIn(loginEmail, password);
+      notify(`Welcome back, ${signedIn.name}`);
+      router.replace(homeForRole(signedIn.role));
     } catch (err) {
       setError(err.message || 'Invalid credentials');
       if (!(err instanceof ApiError)) notify(err.message || 'Login failed', 'error');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -82,10 +81,10 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
             >
-              {loading ? 'Signing in…' : 'Sign In'}
+              {submitting ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
         </div>

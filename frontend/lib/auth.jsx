@@ -7,6 +7,23 @@ import { api, setApiToken } from './api';
 
 const AuthContext = createContext(null);
 
+/** Every role must land somewhere after login — missing entries bounce the
+ *  user straight back to /login (the "account never loads" loop). */
+export const ROLE_ROUTES = {
+  admin: '/admin',
+  inputter: '/inputter',
+  recommender: '/recommender',
+  verifier: '/verifier',
+  user: '/driver',
+  driver: '/driver'
+};
+
+export const homeForRole = (role) => ROLE_ROUTES[role] || '/login';
+
+/** Roles allowed on a protected layout (a layout may accept several). */
+const allowsRole = (allowed, role) =>
+  !allowed || (Array.isArray(allowed) ? allowed : [allowed]).includes(role);
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +37,8 @@ export function AuthProvider({ children }) {
           setApiToken(idToken);
           const { user } = await api.get('/auth/me');
           setUser(user);
-        } catch {
+        } catch (err) {
+          console.error('[auth] /auth/me failed:', err?.message || err);
           setUser(null);
         }
       } else {
@@ -72,15 +90,8 @@ export function useAuthGuard(role) {
   const { user, loading } = useAuth();
   useEffect(() => {
     if (!loading && !user) window.location.href = '/login';
-    if (!loading && user && role && user.role !== role) {
-      // Route based on role
-      const roleRoutes = {
-        admin: '/admin',
-        inputter: '/inputter',
-        recommender: '/recommender',
-        verifier: '/verifier'
-      };
-      window.location.href = roleRoutes[user.role] || '/login';
+    if (!loading && user && role && !allowsRole(role, user.role)) {
+      window.location.href = homeForRole(user.role);
     }
   }, [loading, user, role]);
   return { user, loading };
