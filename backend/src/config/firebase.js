@@ -45,38 +45,86 @@ function loadCredentials() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (raw && raw.trim()) return parseServiceAccount(raw.trim());
 
-  const candidates = [
+  const exact = [
     isAbsolute(ENV.serviceAccountPath) ? ENV.serviceAccountPath : join(process.cwd(), ENV.serviceAccountPath),
     join(PKG_ROOT, 'service-account.json'),
     join(PKG_ROOT, 'serviceAccount.json'),
     join(PKG_ROOT, 'service_account.json')
   ];
-
-  for (const file of candidates) {
+  for (const file of exact) {
     if (file && existsSync(file)) {
-      try {
-        return JSON.parse(readFileSync(file, 'utf8'));
-      } catch (_) { /* broken file — keep looking */ }
+      const json = readServiceAccountFile(file);
+      if (json) return logSource(json, file);
     }
   }
 
-  // Last resort: any *service*account*.json sitting next to package.json —
-  // hosts often rename the file or deploy it into a different working dir.
-  try {
-    for (const name of readdirSync(PKG_ROOT)) {
-      if (/service.?account.*\.json$/i.test(name) && !/example|sample/i.test(name)) {
-        try {
-          const json = JSON.parse(readFileSync(join(PKG_ROOT, name), 'utf8'));
-          if (json?.project_id) return json;
-        } catch (_) { /* skip unreadable file */ }
-      }
-    }
-  } catch (_) { /* directory unreadable */ }
+  // The file may have been uploaded into the wrong sub-folder of the app
+  // (shared hosts run from a different cwd than the deploy dir). Search the
+  // app tree — and one level above it — instead of failing on a fixed path.
+  const roots = [
+    { dir: PKG_ROOT, depth: 3 },
+    { dir: process.cwd(), depth: 3 },
+    { dir: dirname(PKG_ROOT), depth: 1 }
+  ].filter((r, i, all) => r.dir && all.findIndex((o) => o.dir === r.dir) === i);
+
+  const searched = [];
+  const budget = { left: 400 };
+  for (const root of roots) {
+    const found = scanForCredentials(root.dir, root.depth, budget, searched);
+    if (found) return logSource(found.json, found.file);
+  }
 
   throw credentialsError(
-    'Firebase credentials not found. Set the FIREBASE_SERVICE_ACCOUNT env var to your service account JSON ' +
-      `or place the file at service-account.json (looked in: ${candidates.join(', ')}).`
+    'Firebase credentials not found. Upload service-account.json into the app folder (next to package.json) ' +
+      `or set the FIREBASE_SERVICE_ACCOUNT env var. Searched: ${roots.map((r) => `${r.dir} (depth ${r.depth})`).join('; ')}` +
+      (searched.length ? ` — ${searched.length} files inspected` : '')
   );
+}
+
+function readServiceAccountFile(file) {
+  try {
+    const json = JSON.parse(readFileSync(file, 'utf8'));
+    if (json?.project_id && json?.private_key) return json;
+  } catch (_) { /* broken file — keep looking */ }
+  return null;
+}
+
+function logSource(json, file) {
+  console.error(`[firebase] service account loaded from ${file} (project ${json.project_id})`);
+  return json;
+}
+
+const SKIP_DIRS = new Set(['node_modules', '.git', '.next', 'out', '.vercel', 'coverage']);
+
+function scanForCredentials(dir, depth, budget, searched) {
+  if (depth < 0 || budget.left <= 0) return null;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (_) {
+    return null;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!/service.?account.*\.json$/i.test(entry.name)) continue;
+    if (/example|sample|template/i.test(entry.name)) continue;
+    budget.left -= 1;
+    const file = join(dir, entry.name);
+    searched.push(file);
+    const json = readServiceAccountFile(file);
+    if (json) return { json, file };
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (SKIP_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
+    budget.left -= 1;
+    if (budget.left <= 0) return null;
+    const found = scanForCredentials(join(dir, entry.name), depth - 1, budget, searched);
+    if (found) return found;
+  }
+  return null;
 }
 
 function getAdmin() {
