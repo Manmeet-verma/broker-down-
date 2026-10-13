@@ -7,6 +7,8 @@ import { Button, Field, Input, Select, Textarea, Modal, notify } from './ui';
 import { useMasterData } from '@/lib/useMasterData';
 import { useAuth } from '@/lib/auth';
 import FileUpload from './FileUpload';
+import MultiFileUpload from './MultiFileUpload';
+import { stateNames, cityOptions, PAYMENT_MODES } from '@/lib/states';
 
 function Section({ title, children }) {
   return (
@@ -34,8 +36,8 @@ function CalcField({ label, value, onChange, suffix }) {
 }
 
 const TABS = [
-  'Basic Details', 'Ownership', 'Purchase Record', 'Invoice', 'Insurance', 'Agent',
-  'Certificates', 'Finance', 'Taxes', 'Working Site', 'Applicables', 'Trallow'
+  'Basic Details', 'Ownership', 'Purchase Record', 'Insurance',
+  'Pollution Certificate', 'Finance', 'Taxes', 'Working Site', 'Vehicle Movement'
 ];
 
 const emptyForm = {
@@ -50,8 +52,9 @@ const emptyForm = {
   invoiceInvoiceNo: '', invoiceInvoiceDate: '', invoiceBuyerBilling: '', invoiceBuyerGstNo: '', invoiceBuyerAddress: '', invoiceRcValidFrom: '', invoiceRcValidTo: '',
   insuranceApplicable: true, insuranceCompanyId: '', insuranceCompanyName: '', insurancePremiumAmount: '', insuranceGstPercent: '', insuranceGstAmount: '', insuranceTotalAmount: '',
   insuranceTypeId: '', insuranceTypeName: '', insurancePeriod: '', insuranceValidFrom: '', insuranceValidTo: '',
-  agentName: '', agentCode: '', agentEmail: '', agentInvoiceNo: '', agentGstAmount: '', agentTotalValue: '',
-  pollutionApplicable: true, pollutionPeriod: '', pollutionPeriodEnd: '',
+  insuranceKind: 'general', insuranceTransitReason: '', insuranceSourceLocation: '', insuranceDestinationLocation: '',
+  insuranceInvoiceNo: '', insuranceInvoiceGstAmount: '', insuranceInvoiceTotalValue: '',
+  pollutionApplicable: true, pollutionPeriod: '', pollutionPeriodEnd: '', equipmentNocRequired: false,
   statePeriodApplicable: false, statePeriodPeriod: '', statePeriodPeriodEnd: '',
   nationalPermitApplicable: false, nationalPermitPeriod: '', nationalPermitPeriodEnd: '',
   equipmentFinanced: false, equipmentFree: true,
@@ -61,7 +64,8 @@ const emptyForm = {
   transmitInsurance: false, evApplicable: false, challanApplicable: false, billApplicable: false,
   trallowApplicable: false, trallowNo: '', trallowName: '', trallowFreightAmount: '',
   customTabs: {},
-  taxes: []
+  taxes: [],
+  movements: []
 };
 
 function toDateInput(value) {
@@ -117,8 +121,8 @@ export function vehicleToForm(vehicle) {
     supplyTcs: supply.tcs ?? emptyForm.supplyTcs,
     supplyOtherLabel: supply.otherLabel ?? emptyForm.supplyOtherLabel,
     supplyOtherAmount: supply.otherAmount ?? emptyForm.supplyOtherAmount,
-    supplyBuyerName: supply.buyerName ?? emptyForm.supplyBuyerName,
-    supplyBuyerGstNo: supply.buyerGstNo ?? emptyForm.supplyBuyerGstNo,
+    supplyBuyerName: supply.buyerName ?? invoice.buyerBilling ?? emptyForm.supplyBuyerName,
+    supplyBuyerGstNo: supply.buyerGstNo ?? invoice.buyerGstNo ?? emptyForm.supplyBuyerGstNo,
     supplyPaymentMethod: supply.paymentMethod ?? emptyForm.supplyPaymentMethod,
     invoiceInvoiceNo: invoice.invoiceNo ?? emptyForm.invoiceInvoiceNo,
     invoiceInvoiceDate: toDateInput(invoice.invoiceDate) || emptyForm.invoiceInvoiceDate,
@@ -139,15 +143,17 @@ export function vehicleToForm(vehicle) {
     insurancePeriod: v.insurancePeriod ?? emptyForm.insurancePeriod,
     insuranceValidFrom: toDateInput(insurance.validFrom) || emptyForm.insuranceValidFrom,
     insuranceValidTo: toDateInput(insurance.validTo) || emptyForm.insuranceValidTo,
-    agentName: agent.name ?? emptyForm.agentName,
-    agentCode: agent.code ?? emptyForm.agentCode,
-    agentEmail: agent.email ?? emptyForm.agentEmail,
-    agentInvoiceNo: agent.invoiceNo ?? emptyForm.agentInvoiceNo,
-    agentGstAmount: agent.gstAmount ?? emptyForm.agentGstAmount,
-    agentTotalValue: agent.totalValue ?? emptyForm.agentTotalValue,
+    insuranceKind: insurance.kind ?? emptyForm.insuranceKind,
+    insuranceTransitReason: insurance.transitReason ?? emptyForm.insuranceTransitReason,
+    insuranceSourceLocation: insurance.sourceLocation ?? emptyForm.insuranceSourceLocation,
+    insuranceDestinationLocation: insurance.destinationLocation ?? emptyForm.insuranceDestinationLocation,
+    insuranceInvoiceNo: insurance.invoiceNo ?? agent.invoiceNo ?? emptyForm.insuranceInvoiceNo,
+    insuranceInvoiceGstAmount: insurance.invoiceGstAmount ?? agent.gstAmount ?? emptyForm.insuranceInvoiceGstAmount,
+    insuranceInvoiceTotalValue: insurance.invoiceTotalValue ?? agent.totalValue ?? emptyForm.insuranceInvoiceTotalValue,
     pollutionApplicable: pollution.applicable ?? emptyForm.pollutionApplicable,
     pollutionPeriod: pollution.period ?? emptyForm.pollutionPeriod,
     pollutionPeriodEnd: toDateInput(pollution.validTo) || emptyForm.pollutionPeriodEnd,
+    equipmentNocRequired: v.equipmentNocRequired ?? emptyForm.equipmentNocRequired,
     statePeriodApplicable: statePeriod.applicable ?? emptyForm.statePeriodApplicable,
     statePeriodPeriod: statePeriod.period ?? emptyForm.statePeriodPeriod,
     statePeriodPeriodEnd: toDateInput(statePeriod.validTo) || emptyForm.statePeriodPeriodEnd,
@@ -175,7 +181,8 @@ export function vehicleToForm(vehicle) {
     trallowName: trallow.trallowName ?? emptyForm.trallowName,
     trallowFreightAmount: trallow.freightAmount ?? emptyForm.trallowFreightAmount,
     customTabs: (v.customTabs && typeof v.customTabs === 'object') ? v.customTabs : {},
-    taxes: Array.isArray(v.taxes) ? v.taxes : []
+    taxes: Array.isArray(v.taxes) ? v.taxes : [],
+    movements: Array.isArray(v.movements) ? v.movements : []
   };
 }
 
@@ -186,6 +193,7 @@ export default function VehicleForm({ initial, vehicleId }) {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [files, setFiles] = useState({});
+  const [fileLists, setFileLists] = useState({});
 
   const categories = useMasterData('categories');
   const ownerships = useMasterData('ownershipNames');
@@ -325,6 +333,36 @@ export default function VehicleForm({ initial, vehicleId }) {
     setForm((f) => ({ ...f, taxes: f.taxes.filter((_, idx) => idx !== i) }));
   };
 
+  const addMovement = () => {
+    setForm((f) => ({
+      ...f,
+      movements: [...(f.movements || []), {
+        sourceState: '', sourceCity: '', destinationState: '', destinationCity: '',
+        projectState: '', projectCity: '', mode: 'trallow',
+        trallowNo: '', driverName: '', driverNo: '', transporterName: '', transporterContact: '', fare: '',
+        advance: '', dieselLitres: '', dieselAmount: '', totalPayable: '', paidAmount: '',
+        paidOwn: false, modeOfPayment: '', reasonType: '', orderedBy: ''
+      }]
+    }));
+  };
+
+  const updateMovement = (i, key, val) => {
+    setForm((f) => {
+      const movements = [...(f.movements || [])];
+      const patch = { [key]: val };
+      if (key === 'sourceState' || key === 'destinationState' || key === 'projectState') {
+        const cityKey = key.replace('State', 'City');
+        patch[cityKey] = '';
+      }
+      movements[i] = { ...movements[i], ...patch };
+      return { ...f, movements };
+    });
+  };
+
+  const removeMovement = (i) => {
+    setForm((f) => ({ ...f, movements: (f.movements || []).filter((_, idx) => idx !== i) }));
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.vehicleNumber?.trim()) {
@@ -339,6 +377,8 @@ export default function VehicleForm({ initial, vehicleId }) {
       for (const [key, val] of Object.entries(form)) {
         if (key === 'taxes') {
           fd.append('taxes', JSON.stringify(val || []));
+        } else if (key === 'movements') {
+          fd.append('movements', JSON.stringify(val || []));
         } else if (key === 'customTabs') {
           fd.append('customTabs', JSON.stringify(val || {}));
         } else if (typeof val === 'boolean') {
@@ -349,6 +389,9 @@ export default function VehicleForm({ initial, vehicleId }) {
       }
       for (const [key, file] of Object.entries(files)) {
         if (file) fd.append(key, file);
+      }
+      for (const [key, list] of Object.entries(fileLists)) {
+        for (const f of list || []) if (f) fd.append(key, f);
       }
 
       if (vehicleId) {
@@ -441,9 +484,15 @@ export default function VehicleForm({ initial, vehicleId }) {
             <Field label="Model" required>
               <Input value={form.model} onChange={set('model')} placeholder="Model" />
             </Field>
+            <Field label="RC Valid From">
+              <Input type="date" value={form.invoiceRcValidFrom} onChange={set('invoiceRcValidFrom')} />
+            </Field>
+            <Field label="RC Valid To">
+              <Input type="date" value={form.invoiceRcValidTo} onChange={set('invoiceRcValidTo')} />
+            </Field>
           </div>
-          <Field label="RC PDF / Image">
-            <FileUpload accept=".pdf,.jpg,.jpeg,.png" label="Attach RC Document" onChange={(f) => setFile('rc', f)} />
+          <Field label="RC Documents (attach multiple)">
+            <MultiFileUpload files={fileLists.rc || []} onChange={(l) => setFileLists(s => ({ ...s, rc: l }))} label="Attach RC Document" />
           </Field>
         </Section>
       );
@@ -518,10 +567,21 @@ export default function VehicleForm({ initial, vehicleId }) {
               <Input type="number" value={form.supplyTcs} onChange={set('supplyTcs')} placeholder="0.00" />
             </Field>
             <Field label="Name of Buyer">
-              <Input value={form.supplyBuyerName} onChange={set('supplyBuyerName')} placeholder="Buyer name" />
+              <Input value={form.supplyBuyerName} placeholder="Buyer name"
+                onChange={(e) => setForm((f) => ({ ...f, supplyBuyerName: e.target.value, invoiceBuyerBilling: e.target.value }))} />
             </Field>
             <Field label="GST No. (Buyer)">
-              <Input value={form.supplyBuyerGstNo} onChange={set('supplyBuyerGstNo')} placeholder="Buyer GSTIN" className="font-mono uppercase" />
+              <Input value={form.supplyBuyerGstNo} placeholder="Buyer GSTIN" className="font-mono uppercase"
+                onChange={(e) => setForm((f) => ({ ...f, supplyBuyerGstNo: e.target.value, invoiceBuyerGstNo: e.target.value }))} />
+            </Field>
+            <Field label="Invoice Number">
+              <Input value={form.invoiceInvoiceNo} onChange={set('invoiceInvoiceNo')} placeholder="Invoice no." />
+            </Field>
+            <Field label="Invoice Date">
+              <Input type="date" value={form.invoiceInvoiceDate} onChange={set('invoiceInvoiceDate')} />
+            </Field>
+            <Field label="Billing Address" className="sm:col-span-2">
+              <Textarea value={form.invoiceBuyerAddress} onChange={set('invoiceBuyerAddress')} placeholder="Buyer billing address" rows={2} />
             </Field>
             <Field label="Other Label">
               <Input value={form.supplyOtherLabel} onChange={set('supplyOtherLabel')} placeholder="Label" />
@@ -535,45 +595,23 @@ export default function VehicleForm({ initial, vehicleId }) {
             <CalcField label="Total Amount" value={form.supplyTotalAmount} suffix="₹" />
             <CalcField label="Grand Total" value={supplyGrandTotal} suffix="₹" />
           </div>
-        </Section>
-      );
-
-      case 3: return (
-        <Section title="Invoice">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Invoice Number">
-              <Input value={form.invoiceInvoiceNo} onChange={set('invoiceInvoiceNo')} placeholder="Invoice no." />
-            </Field>
-            <Field label="Invoice Date">
-              <Input type="date" value={form.invoiceInvoiceDate} onChange={set('invoiceInvoiceDate')} />
-            </Field>
-            <Field label="Buyer Billing Name">
-              <Input value={form.invoiceBuyerBilling} onChange={set('invoiceBuyerBilling')} placeholder="Buyer name" />
-            </Field>
-            <Field label="GST No. of Buyer">
-              <Input value={form.invoiceBuyerGstNo} onChange={set('invoiceBuyerGstNo')} placeholder="GSTIN" className="font-mono uppercase" />
-            </Field>
-            <Field label="Billing Address" className="sm:col-span-2">
-              <Textarea value={form.invoiceBuyerAddress} onChange={set('invoiceBuyerAddress')} placeholder="Address" rows={2} />
-            </Field>
-            <Field label="RC Valid From">
-              <Input type="date" value={form.invoiceRcValidFrom} onChange={set('invoiceRcValidFrom')} />
-            </Field>
-            <Field label="RC Valid To">
-              <Input type="date" value={form.invoiceRcValidTo} onChange={set('invoiceRcValidTo')} />
-            </Field>
-          </div>
           <Field label="Invoice PDF">
             <FileUpload accept=".pdf,.jpg,.jpeg,.png" label="Attach Invoice" onChange={(f) => setFile('invoice', f)} />
           </Field>
         </Section>
       );
 
-      case 4: return (
+      case 3: return (
         <Section title="Insurance">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Insurance Company">
               <Input value={form.insuranceCompanyName} onChange={set('insuranceCompanyName')} placeholder="Company name" />
+            </Field>
+            <Field label="Insurance Category">
+              <select value={form.insuranceKind} onChange={(e) => setForm(f => ({ ...f, insuranceKind: e.target.value }))} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="general">General Insurance</option>
+                <option value="transit">Transit Insurance</option>
+              </select>
             </Field>
             <Field label="Insurance Type">
               <select value={form.insuranceTypeId} onChange={(e) => {
@@ -606,45 +644,53 @@ export default function VehicleForm({ initial, vehicleId }) {
               <Input type="date" value={form.insuranceValidTo} onChange={set('insuranceValidTo')} />
             </Field>
           </div>
+          {form.insuranceKind === 'transit' && (
+            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+              <h4 className="mb-3 text-xs font-bold uppercase tracking-wide text-blue-700">Transit Insurance Details</h4>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label="Reason">
+                  <Input value={form.insuranceTransitReason} onChange={set('insuranceTransitReason')} placeholder="Reason for transit" />
+                </Field>
+                <Field label="Source Location">
+                  <Input value={form.insuranceSourceLocation} onChange={set('insuranceSourceLocation')} placeholder="Source location" />
+                </Field>
+                <Field label="Destination Location">
+                  <Input value={form.insuranceDestinationLocation} onChange={set('insuranceDestinationLocation')} placeholder="Destination location" />
+                </Field>
+              </div>
+              <Field label="Documents of Transit">
+                <MultiFileUpload files={fileLists.transitDoc || []} onChange={(l) => setFileLists(s => ({ ...s, transitDoc: l }))} label="Attach Transit Document" />
+              </Field>
+            </div>
+          )}
+          <div className="mt-3 rounded-lg border border-slate-200 p-4">
+            <h4 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Insurance Invoice</h4>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Invoice No. of Insurance">
+                <Input value={form.insuranceInvoiceNo} onChange={set('insuranceInvoiceNo')} placeholder="Invoice no." />
+              </Field>
+              <Field label="Invoice GST Amount">
+                <Input type="number" value={form.insuranceInvoiceGstAmount} onChange={set('insuranceInvoiceGstAmount')} placeholder="0.00" />
+              </Field>
+              <Field label="Invoice Total Value">
+                <Input type="number" value={form.insuranceInvoiceTotalValue} onChange={set('insuranceInvoiceTotalValue')} placeholder="0.00" />
+              </Field>
+            </div>
+          </div>
           <Field label="Insurance PDF">
             <FileUpload accept=".pdf,.jpg,.jpeg,.png" label="Attach Insurance Document" onChange={(f) => setFile('insurance', f)} />
           </Field>
         </Section>
       );
 
-      case 5: return (
-        <Section title="Agent Details (Optional)">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Agent Name">
-              <Input value={form.agentName} onChange={set('agentName')} placeholder="Agent name" />
-            </Field>
-            <Field label="Agent Code">
-              <Input value={form.agentCode} onChange={set('agentCode')} placeholder="Code" />
-            </Field>
-            <Field label="Agent Email">
-              <Input type="email" value={form.agentEmail} onChange={set('agentEmail')} placeholder="email@example.com" />
-            </Field>
-            <Field label="Invoice No. of Insurance">
-              <Input value={form.agentInvoiceNo} onChange={set('agentInvoiceNo')} placeholder="Invoice no." />
-            </Field>
-            <Field label="GST Amount">
-              <Input type="number" value={form.agentGstAmount} onChange={set('agentGstAmount')} placeholder="0.00" />
-            </Field>
-            <Field label="Total Value">
-              <Input type="number" value={form.agentTotalValue} onChange={set('agentTotalValue')} placeholder="0.00" />
-            </Field>
-          </div>
-          <Field label="Agent Document">
-            <FileUpload accept=".pdf,.jpg,.jpeg,.png" label="Attach Agent Document" onChange={(f) => setFile('agent', f)} />
-          </Field>
-        </Section>
-      );
-
-      case 6: return (
+      case 4: return (
         <Section title="Certificates">
           <div className="space-y-6">
             <div className="rounded-lg border border-slate-200 p-4">
               <YesNo label="Pollution Certificate Applicable" value={form.pollutionApplicable} onChange={(v) => setForm(f => ({ ...f, pollutionApplicable: v }))} id="poll" />
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <YesNo label="Equipment NOC Required" value={form.equipmentNocRequired} onChange={(v) => setForm(f => ({ ...f, equipmentNocRequired: v }))} id="nocReq" />
+              </div>
               {form.pollutionApplicable && (
                 <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Period"><Input value={form.pollutionPeriod} onChange={set('pollutionPeriod')} placeholder="e.g. 6 months" /></Field>
@@ -677,7 +723,7 @@ export default function VehicleForm({ initial, vehicleId }) {
         </Section>
       );
 
-      case 7: return (
+      case 5: return (
         <Section title="Finance Details">
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -710,14 +756,14 @@ export default function VehicleForm({ initial, vehicleId }) {
         </Section>
       );
 
-      case 8: return (
+      case 6: return (
         <Section title="Taxes">
           <div className="space-y-3">
             {(form.taxes || []).map((tax, i) => (
               <div key={i} className="flex items-end gap-3 rounded-lg border border-slate-200 p-3">
-                <div className="flex-1"><Field label="Tax Type"><Input value={tax.type} onChange={(e) => updateTax(i, 'type', e.target.value)} placeholder="Road Tax, Green Tax..." /></Field></div>
-                <div className="flex-1"><Field label="Period"><Input value={tax.period} onChange={(e) => updateTax(i, 'period', e.target.value)} placeholder="e.g. 1 year" /></Field></div>
-                <div className="flex-1"><Field label="Amount"><Input type="number" value={tax.amount} onChange={(e) => updateTax(i, 'amount', e.target.value)} placeholder="0.00" /></Field></div>
+                <div className="flex-1"><Field label="Tax Type"><Input value={tax.type ?? ''} onChange={(e) => updateTax(i, 'type', e.target.value)} placeholder="Road Tax, Green Tax..." /></Field></div>
+                <div className="flex-1"><Field label="Period"><Input value={tax.period ?? ''} onChange={(e) => updateTax(i, 'period', e.target.value)} placeholder="e.g. 1 year" /></Field></div>
+                <div className="flex-1"><Field label="Amount"><Input type="number" value={tax.amount ?? ''} onChange={(e) => updateTax(i, 'amount', e.target.value)} placeholder="0.00" /></Field></div>
                 <div className="flex-1"><Field label="PDF"><FileUpload accept=".pdf,.jpg,.jpeg,.png" label="Attach" onChange={(f) => setFile(`tax_${i}`, f)} /></Field></div>
                 <button type="button" onClick={() => removeTax(i)} className="mb-1 rounded p-2 text-red-500 hover:bg-red-50">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -729,7 +775,7 @@ export default function VehicleForm({ initial, vehicleId }) {
         </Section>
       );
 
-      case 9: return (
+      case 7: return (
         <Section title="Working Site Update">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Reason (Shifting site, etc.)"><Textarea value={form.workingSiteReason} onChange={set('workingSiteReason')} placeholder="Reason for site update" rows={2} /></Field>
@@ -738,28 +784,122 @@ export default function VehicleForm({ initial, vehicleId }) {
         </Section>
       );
 
-      case 10: return (
-        <Section title="Applicables">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 p-4"><YesNo label="Transmit Insurance" value={form.transmitInsurance} onChange={(v) => setForm(f => ({ ...f, transmitInsurance: v }))} id="ti" /></div>
-            <div className="rounded-lg border border-slate-200 p-4"><YesNo label="EV Applicable" value={form.evApplicable} onChange={(v) => setForm(f => ({ ...f, evApplicable: v }))} id="ev" /></div>
-            <div className="rounded-lg border border-slate-200 p-4"><YesNo label="Challan Applicable" value={form.challanApplicable} onChange={(v) => setForm(f => ({ ...f, challanApplicable: v }))} id="ch" /></div>
-            <div className="rounded-lg border border-slate-200 p-4"><YesNo label="Bill Applicable" value={form.billApplicable} onChange={(v) => setForm(f => ({ ...f, billApplicable: v }))} id="bl" /></div>
-          </div>
-        </Section>
-      );
-
-      case 11: return (
-        <Section title="Trallow Details">
+      case 8: return (
+        <Section title="Vehicle Movement">
           <div className="space-y-4">
-            <YesNo label="Trallow Applicable" value={form.trallowApplicable} onChange={(v) => setForm(f => ({ ...f, trallowApplicable: v }))} id="trallow" />
-            {form.trallowApplicable && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <Field label="Trallow Number"><Input value={form.trallowNo} onChange={set('trallowNo')} placeholder="Trallow no." /></Field>
-                <Field label="Trallow Name"><Input value={form.trallowName} onChange={set('trallowName')} placeholder="Trallow name" /></Field>
-                <Field label="Freight Amount"><Input type="number" value={form.trallowFreightAmount} onChange={set('trallowFreightAmount')} placeholder="0.00" /></Field>
+            {(form.movements || []).map((m, i) => (
+              <div key={i} className="rounded-lg border border-slate-200 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Movement {i + 1}</h4>
+                  <button type="button" onClick={() => removeMovement(i)} className="rounded p-2 text-red-500 hover:bg-red-50">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="Source — State">
+                    <select value={m.sourceState ?? ''} onChange={(e) => updateMovement(i, 'sourceState', e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                      <option value="">Select state</option>
+                      {stateNames.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Source — City">
+                    <select value={m.sourceCity ?? ''} onChange={(e) => updateMovement(i, 'sourceCity', e.target.value)} disabled={!m.sourceState} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50">
+                      <option value="">{m.sourceState ? 'Select city' : 'Select state first'}</option>
+                      {cityOptions(m.sourceState, m.sourceCity).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Destination — State">
+                    <select value={m.destinationState ?? ''} onChange={(e) => updateMovement(i, 'destinationState', e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                      <option value="">Select state</option>
+                      {stateNames.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Destination — City">
+                    <select value={m.destinationCity ?? ''} onChange={(e) => updateMovement(i, 'destinationCity', e.target.value)} disabled={!m.destinationState} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50">
+                      <option value="">{m.destinationState ? 'Select city' : 'Select state first'}</option>
+                      {cityOptions(m.destinationState, m.destinationCity).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Project — State">
+                    <select value={m.projectState ?? ''} onChange={(e) => updateMovement(i, 'projectState', e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                      <option value="">Select state</option>
+                      {stateNames.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Project — City">
+                    <select value={m.projectCity ?? ''} onChange={(e) => updateMovement(i, 'projectCity', e.target.value)} disabled={!m.projectState} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50">
+                      <option value="">{m.projectState ? 'Select city' : 'Select state first'}</option>
+                      {cityOptions(m.projectState, m.projectCity).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Movement By">
+                    <select value={m.mode ?? 'trallow'} onChange={(e) => updateMovement(i, 'mode', e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                      <option value="trallow">Trallow</option>
+                      <option value="own">By Own</option>
+                    </select>
+                  </Field>
+                </div>
+                {m.mode === 'trallow' && (
+                  <div className="mt-3 grid grid-cols-1 gap-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Trallow No.">
+                      <Input value={m.trallowNo ?? ''} onChange={(e) => updateMovement(i, 'trallowNo', e.target.value)} placeholder="Trallow no." />
+                    </Field>
+                    <Field label="Driver Name">
+                      <Input value={m.driverName ?? ''} onChange={(e) => updateMovement(i, 'driverName', e.target.value)} placeholder="Driver name" />
+                    </Field>
+                    <Field label="Driver No.">
+                      <Input value={m.driverNo ?? ''} onChange={(e) => updateMovement(i, 'driverNo', e.target.value)} placeholder="Driver phone" />
+                    </Field>
+                    <Field label="Transporter Name">
+                      <Input value={m.transporterName ?? ''} onChange={(e) => updateMovement(i, 'transporterName', e.target.value)} placeholder="Transporter name" />
+                    </Field>
+                    <Field label="Contact No.">
+                      <Input value={m.transporterContact ?? ''} onChange={(e) => updateMovement(i, 'transporterContact', e.target.value)} placeholder="Contact no." />
+                    </Field>
+                    <Field label="Fare (₹)">
+                      <Input type="number" value={m.fare ?? ''} onChange={(e) => updateMovement(i, 'fare', e.target.value)} placeholder="0.00" />
+                    </Field>
+                  </div>
+                )}
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="Advance (₹)">
+                    <Input type="number" value={m.advance ?? ''} onChange={(e) => updateMovement(i, 'advance', e.target.value)} placeholder="0.00" />
+                  </Field>
+                  <Field label="Diesel (Litres)">
+                    <Input type="number" value={m.dieselLitres ?? ''} onChange={(e) => updateMovement(i, 'dieselLitres', e.target.value)} placeholder="0" />
+                  </Field>
+                  <Field label="Diesel Amount (₹)">
+                    <Input type="number" value={m.dieselAmount ?? ''} onChange={(e) => updateMovement(i, 'dieselAmount', e.target.value)} placeholder="0.00" />
+                  </Field>
+                  <Field label="Amount Debited (Total Payable ₹)">
+                    <Input type="number" value={m.totalPayable ?? ''} onChange={(e) => updateMovement(i, 'totalPayable', e.target.value)} placeholder="0.00" />
+                  </Field>
+                  <Field label="Paid Amount (₹)">
+                    <Input type="number" value={m.paidAmount ?? ''} onChange={(e) => updateMovement(i, 'paidAmount', e.target.value)} placeholder="0.00" />
+                  </Field>
+                  <Field label="Mode of Payment">
+                    <select value={m.modeOfPayment ?? ''} onChange={(e) => updateMovement(i, 'modeOfPayment', e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                      <option value="">Select mode</option>
+                      {PAYMENT_MODES.map((pm) => <option key={pm} value={pm}>{pm}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Reason Type">
+                    <Input value={m.reasonType ?? ''} onChange={(e) => updateMovement(i, 'reasonType', e.target.value)} placeholder="Reason type" />
+                  </Field>
+                  <Field label="Order By (Transit)">
+                    <Input value={m.orderedBy ?? ''} onChange={(e) => updateMovement(i, 'orderedBy', e.target.value)} placeholder="Ordered by" />
+                  </Field>
+                  <Field label="Paid Own">
+                    <div className="pt-1.5">
+                      <YesNo label="" value={!!m.paidOwn} onChange={(v) => updateMovement(i, 'paidOwn', v)} id={`movPaidOwn-${i}`} />
+                    </div>
+                  </Field>
+                </div>
               </div>
-            )}
+            ))}
+            <Button type="button" variant="secondary" size="sm" onClick={addMovement}>+ Add Movement</Button>
           </div>
         </Section>
       );

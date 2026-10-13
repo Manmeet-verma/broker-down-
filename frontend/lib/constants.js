@@ -3,7 +3,8 @@ export const DOC_LABELS = {
   insurance: 'Insurance',
   pollution: 'Pollution Certificate',
   permit: 'State Permit',
-  tax: 'Tax Receipt'
+  tax: 'Tax Receipt',
+  transitDoc: 'Transit Document'
 };
 
 export const DOC_TYPES = {
@@ -14,6 +15,7 @@ export const DOC_TYPES = {
   noc: 'N/P / NOC',
   permit: 'State Permit',
   tax: 'Tax Receipt',
+  transitDoc: 'Transit Document',
   other: 'Other'
 };
 

@@ -49,10 +49,10 @@ app.get('/api/dashboard', authenticate, asyncHandler(dashboardCtrl.dashboard));
 
 /* ------------------------- vehicles ------------------------- */
 app.get('/api/vehicles', authenticate, asyncHandler(vehicleCtrl.listVehicles));
-app.post('/api/vehicles', authenticate, requireWorkflowUser, upload.array('files', 20), asyncHandler(vehicleCtrl.createVehicle));
+app.post('/api/vehicles', authenticate, requireWorkflowUser, upload.any(), asyncHandler(vehicleCtrl.createVehicle));
 app.get('/api/vehicles/:id', authenticate, asyncHandler(vehicleCtrl.getVehicle));
 app.get('/api/vehicles/:id/export', authenticate, asyncHandler(vehicleExportCtrl.exportVehicleExcel));
-app.put('/api/vehicles/:id', authenticate, requireWorkflowUser, upload.array('files', 20), asyncHandler(vehicleCtrl.updateVehicle));
+app.put('/api/vehicles/:id', authenticate, requireWorkflowUser, upload.any(), asyncHandler(vehicleCtrl.updateVehicle));
 app.delete('/api/vehicles/:id', authenticate, requireAdmin, asyncHandler(vehicleCtrl.deleteVehicle));
 app.get('/api/vehicles/:id/history', authenticate, asyncHandler(vehicleCtrl.vehicleHistory));
 app.post('/api/vehicles/:id/workflow', authenticate, requireWorkflowUser, asyncHandler(vehicleCtrl.workflowAction));

@@ -9,7 +9,7 @@ import { Card, Button, Badge, PageLoading, StatusBadge, EmptyState, Confirm, Mod
 import { PageHeader, InfoRow, ExpiryPill } from '@/components/common';
 import { DOC_TYPES } from '@/lib/constants';
 
-const TABS = ['Basic Information', 'Purchase Record', 'RC Details', 'Insurance', 'Pollution', 'State Permit', 'Tax', 'Finance', 'Driver', 'Documents', 'History'];
+const TABS = ['Basic Information', 'Purchase Record', 'RC Details', 'Insurance', 'Pollution', 'State Permit', 'Tax', 'Finance', 'Driver', 'Movement', 'Documents', 'History'];
 
 function SectionCard({ title, children, status }) {
   return (
@@ -208,6 +208,8 @@ export default function VehicleDetail() {
           <InfoRow label="Make" value={vehicle.make} />
           <InfoRow label="Model" value={vehicle.model} />
           <InfoRow label="Loading Site / Side" value={vehicle.loadingSite} />
+          <InfoRow label="RC Valid From" value={vehicle.invoice?.rcValidFrom} />
+          <InfoRow label="RC Valid To" value={vehicle.invoice?.rcValidTo} />
           <InfoRow label="Created" value={fmtDateTime(vehicle.createdAt)} />
           <InfoRow label="Last Updated" value={fmtDateTime(vehicle.updatedAt)} />
         </SectionCard>
@@ -221,8 +223,11 @@ export default function VehicleDetail() {
           <InfoRow label="Email ID" value={vehicle.supply?.email} />
           <InfoRow label="Phone No." value={vehicle.supply?.phone} />
           <InfoRow label="Payment Method" value={vehicle.supply?.paymentMethod ? (vehicle.supply.paymentMethod === 'financed' ? 'Financed' : 'Without Financed') : null} />
-          <InfoRow label="Name of Buyer" value={vehicle.supply?.buyerName} />
-          <InfoRow label="GST No. (Buyer)" value={vehicle.supply?.buyerGstNo} />
+          <InfoRow label="Name of Buyer" value={vehicle.supply?.buyerName || vehicle.invoice?.buyerBilling} />
+          <InfoRow label="GST No. (Buyer)" value={vehicle.supply?.buyerGstNo || vehicle.invoice?.buyerGstNo} />
+          <InfoRow label="Invoice Number" value={vehicle.invoice?.invoiceNo} />
+          <InfoRow label="Invoice Date" value={vehicle.invoice?.invoiceDate} />
+          <InfoRow label="Billing Address" value={vehicle.invoice?.buyerAddress} />
           <InfoRow label="Sale Value (Basic)" value={vehicle.supply?.salesValue && `₹ ${vehicle.supply.salesValue}`} />
           <InfoRow label="GST / Basic (%)" value={vehicle.supply?.gstPercent} />
           <InfoRow label="GST Amount" value={vehicle.supply?.gstAmount && `₹ ${vehicle.supply.gstAmount}`} />
@@ -250,23 +255,49 @@ export default function VehicleDetail() {
             <InfoRow label="RC Valid From" value={fmtDate(vehicle.rc?.validFrom)} />
             <InfoRow label="RC Valid To" value={fmtDate(vehicle.rc?.validTo)} />
           </div>
+          {docs.filter(d => d.type === 'rc').length > 0 && (
+            <div className="col-span-2 space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Attached RC Documents</h4>
+              {docs.filter(d => d.type === 'rc').map(renderDocRow)}
+            </div>
+          )}
         </SectionCard>
       )}
 
       {tab === 'Insurance' && (
         <SectionCard title="Insurance" status={docStatusOf(vehicle.insurance)}>
-          <InfoRow label="Insurance Company" value={vehicle.insurance?.company} />
-          <InfoRow label="Policy Number" value={vehicle.insurance?.policyNo} />
+          <InfoRow label="Insurance Company" value={vehicle.insurance?.companyName || vehicle.insurance?.company} />
+          {vehicle.insurance?.kind && (
+            <InfoRow label="Insurance Category" value={vehicle.insurance.kind === 'transit' ? 'Transit Insurance' : 'General Insurance'} />
+          )}
+          <InfoRow label="Premium Amount" value={vehicle.insurance?.premiumAmount != null && `₹ ${vehicle.insurance.premiumAmount}`} />
+          <InfoRow label="Total Amount" value={vehicle.insurance?.totalAmount != null && `₹ ${vehicle.insurance.totalAmount}`} />
           <InfoRow label="Valid From" value={fmtDate(vehicle.insurance?.validFrom)} />
           <InfoRow label="Valid To" value={fmtDate(vehicle.insurance?.validTo)} />
           <InfoRow label="Status" value={<ExpiryPill status={docStatusOf(vehicle.insurance)} validTo={vehicle.insurance?.validTo} />} />
-          {vehicle.insurance?.done === false && <InfoRow label="Reason (not done)" value={vehicle.insurance?.reason} />}
+          {vehicle.insurance?.kind === 'transit' && (
+            <>
+              <InfoRow label="Transit Reason" value={vehicle.insurance?.transitReason} />
+              <InfoRow label="Source Location" value={vehicle.insurance?.sourceLocation} />
+              <InfoRow label="Destination Location" value={vehicle.insurance?.destinationLocation} />
+            </>
+          )}
+          <InfoRow label="Invoice No. of Insurance" value={vehicle.insurance?.invoiceNo || vehicle.agentDetails?.invoiceNo} />
+          <InfoRow label="Invoice GST Amount" value={(vehicle.insurance?.invoiceGstAmount ?? vehicle.agentDetails?.gstAmount) != null && `₹ ${vehicle.insurance?.invoiceGstAmount ?? vehicle.agentDetails?.gstAmount}`} />
+          <InfoRow label="Invoice Total Value" value={(vehicle.insurance?.invoiceTotalValue ?? vehicle.agentDetails?.totalValue) != null && `₹ ${vehicle.insurance?.invoiceTotalValue ?? vehicle.agentDetails?.totalValue}`} />
+          {docs.filter(d => d.type === 'transitDoc').length > 0 && (
+            <div className="col-span-2 mt-2 space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Transit Documents</h4>
+              {docs.filter(d => d.type === 'transitDoc').map(renderDocRow)}
+            </div>
+          )}
         </SectionCard>
       )}
 
       {tab === 'Pollution' && (
         <SectionCard title="Pollution Certificate" status={docStatusOf(vehicle.pollution)}>
           <InfoRow label="Certificate Number" value={vehicle.pollution?.number} />
+          <InfoRow label="Equipment NOC Required" value={vehicle.equipmentNocRequired ? 'Yes' : 'No'} />
           <InfoRow label="Valid From" value={fmtDate(vehicle.pollution?.validFrom)} />
           <InfoRow label="Valid To" value={fmtDate(vehicle.pollution?.validTo)} />
           <InfoRow label="Status" value={<ExpiryPill status={docStatusOf(vehicle.pollution)} validTo={vehicle.pollution?.validTo} />} />
@@ -334,6 +365,45 @@ export default function VehicleDetail() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {tab === 'Movement' && (
+        <Card title="Vehicle Movements" subtitle="All movement records from first to current">
+          {(vehicle.movements || []).length === 0 ? (
+            <EmptyState title="No movements recorded" message="Add movement details from the vehicle edit form." />
+          ) : (
+            <div className="space-y-4">
+              {vehicle.movements.map((m, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 p-4">
+                  <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Movement {i + 1}</h4>
+                  <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+                    <InfoRow label="Source" value={[m.sourceCity, m.sourceState].filter(Boolean).join(', ')} />
+                    <InfoRow label="Destination" value={[m.destinationCity, m.destinationState].filter(Boolean).join(', ')} />
+                    <InfoRow label="Project" value={[m.projectCity, m.projectState].filter(Boolean).join(', ')} />
+                    <InfoRow label="Movement By" value={m.mode === 'own' ? 'By Own' : 'Trallow'} />
+                    {m.mode !== 'own' && (<>
+                      <InfoRow label="Trallow No." value={m.trallowNo} />
+                      <InfoRow label="Driver Name" value={m.driverName} />
+                      <InfoRow label="Driver No." value={m.driverNo} />
+                      <InfoRow label="Transporter Name" value={m.transporterName} />
+                      <InfoRow label="Contact No." value={m.transporterContact} />
+                      <InfoRow label="Fare" value={m.fare != null && `₹ ${m.fare}`} />
+                    </>)}
+                    <InfoRow label="Advance" value={m.advance != null && `₹ ${m.advance}`} />
+                    <InfoRow label="Diesel" value={m.dieselLitres != null && `${m.dieselLitres} L`} />
+                    <InfoRow label="Diesel Amount" value={m.dieselAmount != null && `₹ ${m.dieselAmount}`} />
+                    <InfoRow label="Total Payable" value={m.totalPayable != null && <span className="font-semibold">₹ {m.totalPayable}</span>} />
+                    <InfoRow label="Paid Amount" value={m.paidAmount != null && `₹ ${m.paidAmount}`} />
+                    <InfoRow label="Paid Own" value={m.paidOwn ? 'Yes' : 'No'} />
+                    <InfoRow label="Mode of Payment" value={m.modeOfPayment} />
+                    <InfoRow label="Reason Type" value={m.reasonType} />
+                    <InfoRow label="Order By (Transit)" value={m.orderedBy} />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Card>

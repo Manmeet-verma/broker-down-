@@ -88,23 +88,20 @@ export function Field({ label, required, error, hint, children, className }) {
 const inputBase =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400';
 
-export function Input(props) {
-  const { error, ...rest } = props;
-  return <input {...rest} className={cls(inputBase, error && 'border-red-400', rest.className)} />;
+export function Input({ error, value, ...rest }) {
+  return <input {...rest} value={value ?? ''} className={cls(inputBase, error && 'border-red-400', rest.className)} />;
 }
 
-export function Select(props) {
-  const { error, children, ...rest } = props;
+export function Select({ error, children, value, ...rest }) {
   return (
-    <select {...rest} className={cls(inputBase, 'pr-8', error && 'border-red-400', rest.className)}>
+    <select {...rest} value={value ?? ''} className={cls(inputBase, 'pr-8', error && 'border-red-400', rest.className)}>
       {children}
     </select>
   );
 }
 
-export function Textarea(props) {
-  const { error, ...rest } = props;
-  return <textarea {...rest} className={cls(inputBase, 'min-h-[80px]', error && 'border-red-400', rest.className)} />;
+export function Textarea({ error, value, ...rest }) {
+  return <textarea {...rest} value={value ?? ''} className={cls(inputBase, 'min-h-[80px]', error && 'border-red-400', rest.className)} />;
 }
 
 /* ------------------------------------------------ Buttons ------------------------------------------------ */

@@ -4,11 +4,13 @@ import {
 } from '../db/index.js';
 import { uploadFile, deleteStoredFile, readStoredFile } from '../services/storage.js';
 
-const DOC_TYPES = ['invoice', 'rc', 'insurance', 'pollution', 'noc', 'permit', 'tax', 'other', 'ownership', 'loan_schedule', 'joining_form'];
+const DOC_TYPES = ['invoice', 'rc', 'insurance', 'pollution', 'noc', 'permit', 'tax', 'other', 'ownership', 'loan_schedule', 'joining_form', 'transitDoc'];
 const DOC_LABELS = {
   invoice: 'Invoice', rc: 'RC', insurance: 'Insurance', pollution: 'Pollution Certificate',
   noc: 'N/P / NOC', permit: 'State Permit', tax: 'Tax Receipt', other: 'Other',
-  ownership: 'Ownership', loan_schedule: 'Loan Schedule', joining_form: 'Joining Form'
+  ownership: 'Ownership', loan_schedule: 'Loan Schedule', loanSchedule: 'Loan Schedule',
+  joining_form: 'Joining Form', transitDoc: 'Transit Document',
+  statePeriod: 'State Permit', nationalPermit: 'National Permit'
 };
 
 const toISO = (v) => {
@@ -43,6 +45,7 @@ function serializeVehicle(snap) {
     ...h, changedAt: toISO(h.changedAt)
   }));
   out.taxes = (data.taxes || []).map(t => ({ ...t }));
+  out.movements = (Array.isArray(data.movements) ? data.movements : []).map(m => ({ ...m }));
   out.createdAt = toISO(data.createdAt);
   out.updatedAt = toISO(data.updatedAt);
   out.docsStatus = computedStatus(out);
@@ -92,6 +95,33 @@ function parseCustomTabs(raw) {
     } catch (_) { return {}; }
   }
   return typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
+function parseList(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try { const x = JSON.parse(raw); return Array.isArray(x) ? x : []; } catch (_) { return []; }
+  }
+  return [];
+}
+
+function parseMovements(raw) {
+  const p = (v) => String(v || '').trim();
+  const n = (v) => (v === '' || v === null || v === undefined ? null : Number(v) || 0);
+  return parseList(raw).map((mv) => ({
+    sourceState: p(mv.sourceState), sourceCity: p(mv.sourceCity),
+    destinationState: p(mv.destinationState), destinationCity: p(mv.destinationCity),
+    projectState: p(mv.projectState), projectCity: p(mv.projectCity),
+    mode: mv.mode === 'own' ? 'own' : 'trallow',
+    trallowNo: p(mv.trallowNo), driverName: p(mv.driverName), driverNo: p(mv.driverNo),
+    transporterName: p(mv.transporterName), transporterContact: p(mv.transporterContact),
+    fare: n(mv.fare), advance: n(mv.advance),
+    dieselLitres: n(mv.dieselLitres), dieselAmount: n(mv.dieselAmount),
+    totalPayable: n(mv.totalPayable), paidAmount: n(mv.paidAmount),
+    paidOwn: mv.paidOwn === true || mv.paidOwn === 'true',
+    modeOfPayment: p(mv.modeOfPayment), reasonType: p(mv.reasonType), orderedBy: p(mv.orderedBy)
+  }));
 }
 
 function buildVehicleDoc(body, actor) {
@@ -150,17 +180,18 @@ function buildVehicleDoc(body, actor) {
       totalAmount: n(body.insuranceTotalAmount),
       applicable: bd(body.insuranceApplicable, true),
       validFrom: toDate(body.insuranceValidFrom),
-      validTo: toDate(body.insuranceValidTo)
+      validTo: toDate(body.insuranceValidTo),
+      kind: p(body.insuranceKind) || 'general',
+      transitReason: p(body.insuranceTransitReason),
+      sourceLocation: p(body.insuranceSourceLocation),
+      destinationLocation: p(body.insuranceDestinationLocation),
+      invoiceNo: p(body.insuranceInvoiceNo),
+      invoiceGstAmount: n(body.insuranceInvoiceGstAmount),
+      invoiceTotalValue: n(body.insuranceInvoiceTotalValue)
     },
 
     insuranceType: { id: p(body.insuranceTypeId), name: p(body.insuranceTypeName) },
     insurancePeriod: p(body.insurancePeriod),
-
-    agentDetails: {
-      name: p(body.agentName), code: p(body.agentCode), email: p(body.agentEmail),
-      invoiceNo: p(body.agentInvoiceNo), gstAmount: n(body.agentGstAmount),
-      totalValue: n(body.agentTotalValue)
-    },
 
     pollution: {
       applicable: bd(body.pollutionApplicable, true),
@@ -193,7 +224,8 @@ function buildVehicleDoc(body, actor) {
       emailFinancer: p(body.financeEmailFinancer)
     },
 
-    taxes: body.taxes || [],
+    taxes: parseList(body.taxes),
+    movements: parseMovements(body.movements),
 
     workingSite: {
       reason: p(body.workingSiteReason),
@@ -201,6 +233,7 @@ function buildVehicleDoc(body, actor) {
     },
 
     transmitInsurance: b(body.transmitInsurance),
+    equipmentNocRequired: b(body.equipmentNocRequired),
     evApplicable: b(body.evApplicable),
     challanApplicable: b(body.challanApplicable),
     billApplicable: b(body.billApplicable),
@@ -281,11 +314,12 @@ export async function createVehicle(req, res) {
   if (req.files && req.files.length) {
     for (const f of req.files) {
       if (body[f.fieldname]) continue;
+      const field = f.fieldname.startsWith('tax_') ? 'tax' : f.fieldname;
       const stored = await uploadFile(f.buffer, {
         folder: `vehicles/temp/documents`, originalName: f.originalname, mimeType: f.mimetype
       });
       if (!body._pendingUploads) body._pendingUploads = [];
-      body._pendingUploads.push({ field: f.fieldname, ...stored });
+      body._pendingUploads.push({ field, ...stored });
     }
   }
 
@@ -325,7 +359,7 @@ export async function getVehicle(req, res) {
 
   const [docsS, histS] = await Promise.all([
     vehicleDocsRef(id).orderBy('createdAt', 'desc').get(),
-    vehicleHistoryRef(id).orderBy('createdAt', 'desc').limit(500).get()
+    vehicleHistoryRef(id).orderBy('createdAt', 'asc').get()
   ]);
 
   const vehicle = serializeVehicle(snap);
@@ -343,6 +377,37 @@ export async function updateVehicle(req, res) {
   const body = { ...req.body };
   const vn = String(body.vehicleNumber || snap.data().vehicleNumber || '').trim().toUpperCase();
   const doc = buildVehicleDoc({ ...body, vehicleNumber: vn }, req.user);
+
+  const MULTI_DOC_TYPES = ['rc', 'tax', 'transitDoc'];
+  if (req.files && req.files.length) {
+    for (const f of req.files) {
+      const type = f.fieldname.startsWith('tax_') ? 'tax' : f.fieldname;
+      const stored = await uploadFile(f.buffer, {
+        folder: `vehicles/${id}/documents`, originalName: f.originalname, mimeType: f.mimetype
+      });
+      let version = 1;
+      let previousDocId;
+      if (!MULTI_DOC_TYPES.includes(type)) {
+        const existing = await vehicleDocsRef(id).where('type', '==', type).where('active', '==', true).get();
+        for (const d of existing.docs) {
+          await d.ref.update({ active: false, replacedAt: new Date() });
+          previousDocId = previousDocId || d.id;
+          version = Math.max(version, (d.data().version || 1) + 1);
+        }
+      }
+      await vehicleDocsRef(id).doc().set({
+        type, label: DOC_LABELS[type] || type,
+        originalName: stored.originalName || f.originalname, storagePath: stored.path,
+        url: stored.url, mimeType: stored.mimeType, size: stored.size,
+        version, active: true, previousDocId,
+        uploadedBy: actorName(req.user), createdAt: new Date()
+      });
+      await pushHistory(vehicleHistoryRef(id), {
+        action: 'Document uploaded', details: `${stored.originalName || f.originalname} uploaded`,
+        actorId: req.user.uid, actorName: actorName(req.user)
+      });
+    }
+  }
 
   const changes = [];
   const oldData = snap.data();
@@ -444,7 +509,7 @@ export async function getExpiringDocuments(req, res) {
 
 export async function vehicleHistory(req, res) {
   const { id } = req.params;
-  const hist = await vehicleHistoryRef(id).orderBy('createdAt', 'desc').limit(500).get();
+  const hist = await vehicleHistoryRef(id).orderBy('createdAt', 'asc').get();
   res.json({ history: hist.docs.map((d) => ({ id: d.id, ...d.data(), createdAt: toISO(d.data().createdAt) })) });
 }
 

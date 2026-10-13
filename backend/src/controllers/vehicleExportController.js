@@ -39,7 +39,10 @@ function vehicleRows(v) {
     { field: 'Chassis Number', value: fmt(v.chassisNumber) },
     { field: 'Make', value: fmt(v.make) },
     { field: 'Model', value: fmt(v.model) },
+    { field: 'RC Valid From', value: fmt((v.invoice || {}).rcValidFrom) },
+    { field: 'RC Valid To', value: fmt((v.invoice || {}).rcValidTo) },
     { field: 'Status', value: fmt(v.status) },
+    { field: 'Equipment NOC Required', value: v.equipmentNocRequired ? 'Yes' : 'No' },
     { field: 'Created At', value: fmt(v.createdAt) }
   ];
 }
@@ -57,6 +60,8 @@ export async function exportVehicleExcel(req, res) {
   addSectionSheet(wb, 'Vehicle', vehicleRows(v));
 
   const s = v.supply || {};
+  const inv = v.invoice || {};
+
   addSectionSheet(wb, 'Purchase Record', [
     { field: 'Supplier Name', value: fmt(s.supplierName) },
     { field: 'Address', value: fmt(s.address) },
@@ -64,33 +69,35 @@ export async function exportVehicleExcel(req, res) {
     { field: 'Email ID', value: fmt(s.email) },
     { field: 'Phone No.', value: fmt(s.phone) },
     { field: 'Payment Method', value: s.paymentMethod === 'financed' ? 'Financed' : s.paymentMethod === 'without_financed' ? 'Without Financed' : fmt(s.paymentMethod) },
-    { field: 'Name of Buyer', value: fmt(s.buyerName) },
-    { field: 'GST No. (Buyer)', value: fmt(s.buyerGstNo) },
+    { field: 'Name of Buyer', value: fmt(s.buyerName) || fmt((v.invoice || {}).buyerBilling) },
+    { field: 'GST No. (Buyer)', value: fmt(s.buyerGstNo) || fmt((v.invoice || {}).buyerGstNo) },
     { field: 'Sale Value (Basic)', value: fmt(s.salesValue) },
     { field: 'GST / Basic (%)', value: fmt(s.gstPercent) },
     { field: 'GST Amount', value: fmt(s.gstAmount) },
     { field: 'Total Amount', value: fmt(s.totalAmount) },
     { field: 'TCS', value: fmt(s.tcs) },
     { field: 'Other Label', value: fmt(s.otherLabel) },
-    { field: 'Other Amount', value: fmt(s.otherAmount) }
-  ]);
-
-  const inv = v.invoice || {};
-  addSectionSheet(wb, 'Invoice', [
+    { field: 'Other Amount', value: fmt(s.otherAmount) },
     { field: 'Invoice No.', value: fmt(inv.invoiceNo) },
     { field: 'Invoice Date', value: fmt(inv.invoiceDate) },
     { field: 'Buyer Billing Name', value: fmt(inv.buyerBilling) },
-    { field: 'Buyer GST No.', value: fmt(inv.buyerGstNo) },
     { field: 'Buyer Address', value: fmt(inv.buyerAddress) },
-    { field: 'RC Valid From', value: fmt(inv.rcValidFrom) },
-    { field: 'RC Valid To', value: fmt(inv.rcValidTo) }
+    { field: 'Grand Total', value: fmt(Number(s.totalAmount || 0) + Number(s.tcs || 0) + Number(s.otherAmount || 0)) }
   ]);
 
   const ins = v.insurance || {};
+  const legacyAgent = v.agentDetails || {};
   addSectionSheet(wb, 'Insurance', [
     { field: 'Applicable', value: fmt(ins.applicable) },
     { field: 'Company', value: fmt(ins.companyName) },
     { field: 'Type', value: fmt(v.insuranceType?.name) },
+    { field: 'Category', value: ins.kind === 'transit' ? 'Transit Insurance' : ins.kind === 'general' ? 'General Insurance' : fmt(ins.kind) },
+    { field: 'Transit Reason', value: fmt(ins.transitReason) },
+    { field: 'Source Location', value: fmt(ins.sourceLocation) },
+    { field: 'Destination Location', value: fmt(ins.destinationLocation) },
+    { field: 'Invoice No. of Insurance', value: fmt(ins.invoiceNo) || fmt(legacyAgent.invoiceNo) },
+    { field: 'Invoice GST Amount', value: fmt(ins.invoiceGstAmount) || fmt(legacyAgent.gstAmount) },
+    { field: 'Invoice Total Value', value: fmt(ins.invoiceTotalValue) || fmt(legacyAgent.totalValue) },
     { field: 'Premium Amount', value: fmt(ins.premiumAmount) },
     { field: 'GST %', value: fmt(ins.gstPercent) },
     { field: 'GST Amount', value: fmt(ins.gstAmount) },
@@ -120,6 +127,40 @@ export async function exportVehicleExcel(req, res) {
     ];
     ws.getRow(1).font = { bold: true };
     own.forEach((h) => ws.addRow({ name: fmt(h.name || h.newName), changedAt: fmt(h.changedAt), reason: fmt(h.reason) }));
+  }
+
+  const movements = Array.isArray(v.movements) ? v.movements : [];
+  if (movements.length) {
+    const ws = wb.addWorksheet('Vehicle Movement');
+    ws.columns = [
+      { header: 'Source State', key: 'sourceState', width: 18 },
+      { header: 'Source City', key: 'sourceCity', width: 16 },
+      { header: 'Destination State', key: 'destinationState', width: 18 },
+      { header: 'Destination City', key: 'destinationCity', width: 16 },
+      { header: 'Project State', key: 'projectState', width: 18 },
+      { header: 'Project City', key: 'projectCity', width: 16 },
+      { header: 'Movement By', key: 'mode', width: 12 },
+      { header: 'Trallow No.', key: 'trallowNo', width: 14 },
+      { header: 'Driver Name', key: 'driverName', width: 18 },
+      { header: 'Driver No.', key: 'driverNo', width: 14 },
+      { header: 'Transporter Name', key: 'transporterName', width: 18 },
+      { header: 'Contact No.', key: 'transporterContact', width: 14 },
+      { header: 'Fare', key: 'fare', width: 12 },
+      { header: 'Advance', key: 'advance', width: 12 },
+      { header: 'Diesel (L)', key: 'dieselLitres', width: 10 },
+      { header: 'Diesel Amount', key: 'dieselAmount', width: 14 },
+      { header: 'Total Payable', key: 'totalPayable', width: 14 },
+      { header: 'Paid Amount', key: 'paidAmount', width: 14 },
+      { header: 'Paid Own', key: 'paidOwn', width: 10 },
+      { header: 'Mode of Payment', key: 'modeOfPayment', width: 16 },
+      { header: 'Reason Type', key: 'reasonType', width: 16 },
+      { header: 'Order By (Transit)', key: 'orderedBy', width: 18 }
+    ];
+    ws.getRow(1).font = { bold: true };
+    movements.forEach((m) => ws.addRow({
+      ...m, mode: m.mode === 'own' ? 'By Own' : 'Trallow',
+      paidOwn: m.paidOwn ? 'Yes' : 'No'
+    }));
   }
 
   const taxes = Array.isArray(v.taxes) ? v.taxes : [];
