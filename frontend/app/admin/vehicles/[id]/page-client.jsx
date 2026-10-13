@@ -9,7 +9,7 @@ import { Card, Button, Badge, PageLoading, StatusBadge, EmptyState, Confirm, Mod
 import { PageHeader, InfoRow, ExpiryPill } from '@/components/common';
 import { DOC_TYPES } from '@/lib/constants';
 
-const TABS = ['Basic Information', 'RC Details', 'Insurance', 'Pollution', 'State Permit', 'Tax', 'Finance', 'Driver', 'Documents', 'History'];
+const TABS = ['Basic Information', 'Purchase Record', 'RC Details', 'Insurance', 'Pollution', 'State Permit', 'Tax', 'Finance', 'Driver', 'Documents', 'History'];
 
 function SectionCard({ title, children, status }) {
   return (
@@ -34,6 +34,18 @@ export default function VehicleDetail() {
   const [uploading, setUploading] = useState(false);
   const [delDoc, setDelDoc] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      await downloadFile(`/vehicles/${id}/export`, `vehicle-${vehicle?.vehicleNumber || id}.xlsx`);
+    } catch (err) {
+      notify(err.message, 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const load = () => {
     api.get(`/vehicles/${id}`).then((d) => {
@@ -163,6 +175,7 @@ export default function VehicleDetail() {
         actions={
           <>
             <StatusBadge status={ov.status} />
+            <Button variant="secondary" onClick={() => exportExcel()} loading={exporting}>Export Excel</Button>
             <Button variant="secondary" onClick={() => router.push(`/admin/vehicles/${id}/edit`)}>Edit</Button>
             <Button variant="secondary" onClick={() => router.push('/admin/vehicles')}>Back</Button>
           </>
@@ -197,6 +210,30 @@ export default function VehicleDetail() {
           <InfoRow label="Loading Site / Side" value={vehicle.loadingSite} />
           <InfoRow label="Created" value={fmtDateTime(vehicle.createdAt)} />
           <InfoRow label="Last Updated" value={fmtDateTime(vehicle.updatedAt)} />
+        </SectionCard>
+      )}
+
+      {tab === 'Purchase Record' && (
+        <SectionCard title="Purchase Record">
+          <InfoRow label="Supplier Name" value={vehicle.supply?.supplierName} />
+          <InfoRow label="Address" value={vehicle.supply?.address} />
+          <InfoRow label="GST No. (Supplier)" value={vehicle.supply?.gstNo} />
+          <InfoRow label="Email ID" value={vehicle.supply?.email} />
+          <InfoRow label="Phone No." value={vehicle.supply?.phone} />
+          <InfoRow label="Payment Method" value={vehicle.supply?.paymentMethod ? (vehicle.supply.paymentMethod === 'financed' ? 'Financed' : 'Without Financed') : null} />
+          <InfoRow label="Name of Buyer" value={vehicle.supply?.buyerName} />
+          <InfoRow label="GST No. (Buyer)" value={vehicle.supply?.buyerGstNo} />
+          <InfoRow label="Sale Value (Basic)" value={vehicle.supply?.salesValue && `₹ ${vehicle.supply.salesValue}`} />
+          <InfoRow label="GST / Basic (%)" value={vehicle.supply?.gstPercent} />
+          <InfoRow label="GST Amount" value={vehicle.supply?.gstAmount && `₹ ${vehicle.supply.gstAmount}`} />
+          <InfoRow label="TCS" value={vehicle.supply?.tcs && `₹ ${vehicle.supply.tcs}`} />
+          <InfoRow label={vehicle.supply?.otherLabel || 'Other Amount'} value={vehicle.supply?.otherAmount && `₹ ${vehicle.supply.otherAmount}`} />
+          <div className="col-span-2 rounded-lg bg-slate-50 p-3">
+            <InfoRow label="Total Amount" value={vehicle.supply?.totalAmount && <span className="font-semibold text-slate-900">₹ {vehicle.supply.totalAmount}</span>} />
+            <InfoRow label="Grand Total" value={<span className="font-semibold text-slate-900">₹ {(
+              Number(vehicle.supply?.totalAmount || 0) + Number(vehicle.supply?.tcs || 0) + Number(vehicle.supply?.otherAmount || 0)
+            ).toFixed(2)}</span>} />
+          </div>
         </SectionCard>
       )}
 

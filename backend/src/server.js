@@ -12,6 +12,8 @@ import * as shiftCtrl from './controllers/shiftController.js';
 import * as issueCtrl from './controllers/issueController.js';
 import * as dashboardCtrl from './controllers/dashboardController.js';
 import { masterDataControllers, stateController } from './controllers/masterDataController.js';
+import * as vehicleTabCtrl from './controllers/vehicleTabController.js';
+import * as vehicleExportCtrl from './controllers/vehicleExportController.js';
 
 process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
@@ -49,6 +51,7 @@ app.get('/api/dashboard', authenticate, asyncHandler(dashboardCtrl.dashboard));
 app.get('/api/vehicles', authenticate, asyncHandler(vehicleCtrl.listVehicles));
 app.post('/api/vehicles', authenticate, requireWorkflowUser, upload.array('files', 20), asyncHandler(vehicleCtrl.createVehicle));
 app.get('/api/vehicles/:id', authenticate, asyncHandler(vehicleCtrl.getVehicle));
+app.get('/api/vehicles/:id/export', authenticate, asyncHandler(vehicleExportCtrl.exportVehicleExcel));
 app.put('/api/vehicles/:id', authenticate, requireWorkflowUser, upload.array('files', 20), asyncHandler(vehicleCtrl.updateVehicle));
 app.delete('/api/vehicles/:id', authenticate, requireAdmin, asyncHandler(vehicleCtrl.deleteVehicle));
 app.get('/api/vehicles/:id/history', authenticate, asyncHandler(vehicleCtrl.vehicleHistory));
@@ -99,6 +102,10 @@ for (const col of masterCols) {
   app.put(`/api/${col}/:id`, authenticate, requireAdmin, asyncHandler(ctrl.update));
   app.delete(`/api/${col}/:id`, authenticate, requireAdmin, asyncHandler(ctrl.remove));
 }
+
+app.get('/api/vehicleTabs', authenticate, asyncHandler(vehicleTabCtrl.listVehicleTabs));
+app.post('/api/vehicleTabs', authenticate, requireAdmin, asyncHandler(vehicleTabCtrl.createVehicleTab));
+app.delete('/api/vehicleTabs/:id', authenticate, requireAdmin, asyncHandler(vehicleTabCtrl.removeVehicleTab));
 
 app.get('/api/states', authenticate, asyncHandler(stateController.listStates));
 app.post('/api/states', authenticate, requireAdmin, asyncHandler(stateController.createState));

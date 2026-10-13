@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { fmtDate, daysLeft, cls } from '@/lib/utils';
 import { Card, PageLoading, StatusBadge } from '@/components/ui';
 import { PageHeader } from '@/components/common';
+import DocumentExpiryTabs from '@/components/DocumentExpiryTabs';
 
 function StatCard({ label, value, tone, icon, to }) {
   const tones = {
@@ -41,9 +42,6 @@ export default function AdminDashboard() {
 
   if (!data) return <PageLoading />;
 
-  const s = data.summary;
-  const icon = <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
-
   return (
     <div>
       <PageHeader
@@ -67,29 +65,8 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mt-6">
-        <Card title="Document Status Overview" subtitle="Per-document validity across the fleet">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {Object.entries({
-              rc: 'RC',
-              insurance: 'Insurance',
-              pollution: 'Pollution',
-              permit: 'State Permit',
-              tax: 'Tax'
-            }).map(([key, label]) => {
-              const d = s[key] || { valid: 0, expiring: 0, expired: 0, notDone: 0 };
-              return (
-                <div key={key} className="rounded-lg border border-slate-200 p-4">
-                  <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">{label}</div>
-                  <div className="space-y-1.5 text-sm">
-                    <div className="flex justify-between"><span className="text-slate-500">Valid</span><span className="font-semibold text-emerald-600">{d.valid}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Expiring Soon</span><span className="font-semibold text-amber-600">{d.expiring}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Expired</span><span className="font-semibold text-red-600">{d.expired}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Not Done</span><span className="font-semibold text-slate-400">{d.notDone}</span></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <Card title="Document Status" subtitle="Excel-style sheets — warnings start 3 months (90 days) before expiry">
+          <DocumentExpiryTabs />
         </Card>
       </div>
 
@@ -110,6 +87,7 @@ export default function AdminDashboard() {
                       <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Vehicle</th>
                       <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Document</th>
                       <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Expiry</th>
+                      <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Days Left</th>
                       <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Status</th>
                     </tr>
                   </thead>
@@ -121,6 +99,14 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-3 py-2.5 text-sm">{a.document}</td>
                         <td className="px-3 py-2.5 text-sm">{fmtDate(a.validTo)}</td>
+                        <td className="px-3 py-2.5 text-sm">
+                          {(() => {
+                            const left = daysLeft(a.validTo);
+                            if (left === null) return '—';
+                            if (left < 0) return <span className="font-semibold text-red-600">Expired {-left}d ago</span>;
+                            return <span className="font-semibold text-amber-600">{left}d left</span>;
+                          })()}
+                        </td>
                         <td className="px-3 py-2.5">
                           <StatusBadge status={a.status} />
                         </td>

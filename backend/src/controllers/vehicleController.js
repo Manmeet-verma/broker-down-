@@ -83,6 +83,17 @@ function docStatusOf(section) {
   return 'valid';
 }
 
+function parseCustomTabs(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_) { return {}; }
+  }
+  return typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
 function buildVehicleDoc(body, actor) {
   const p = (v) => String(v || '').trim();
   const n = (v) => v ? Number(v) : null;
@@ -91,6 +102,8 @@ function buildVehicleDoc(body, actor) {
 
   return {
     categoryId: p(body.categoryId), categoryName: p(body.categoryName),
+    subcategoryId: p(body.subcategoryId), subcategoryName: p(body.subcategoryName),
+    customTabs: parseCustomTabs(body.customTabs),
     type: p(body.type) || 'company',
     vehicleNumber: p(body.vehicleNumber), serialNumber: p(body.serialNumber),
     applicableNoType: p(body.applicableNoType) || 'serial',
@@ -102,13 +115,20 @@ function buildVehicleDoc(body, actor) {
 
     supply: {
       supplierName: p(body.supplySupplierName),
+      address: p(body.supplyAddress),
+      gstNo: p(body.supplyGstNo),
+      email: p(body.supplyEmail),
+      phone: p(body.supplyPhone),
       salesValue: n(body.supplySalesValue),
       gstPercent: n(body.supplyGstPercent),
       gstAmount: n(body.supplyGstAmount),
       totalAmount: n(body.supplyTotalAmount),
       tcs: n(body.supplyTcs),
       otherLabel: p(body.supplyOtherLabel),
-      otherAmount: n(body.supplyOtherAmount)
+      otherAmount: n(body.supplyOtherAmount),
+      buyerName: p(body.supplyBuyerName),
+      buyerGstNo: p(body.supplyBuyerGstNo),
+      paymentMethod: p(body.supplyPaymentMethod)
     },
 
     invoice: {
@@ -326,7 +346,7 @@ export async function updateVehicle(req, res) {
 
   const changes = [];
   const oldData = snap.data();
-  for (const key of ['categoryId', 'type', 'vehicleNumber', 'make', 'model', 'ownershipName']) {
+  for (const key of ['categoryId', 'subcategoryId', 'type', 'vehicleNumber', 'make', 'model', 'ownershipName']) {
     if (doc[key] !== oldData[key]) changes.push(key);
   }
   if (changes.length) {

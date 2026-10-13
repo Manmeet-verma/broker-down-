@@ -4,7 +4,7 @@ import {
 } from '../db/index.js';
 import { uploadFile, deleteStoredFile } from '../services/storage.js';
 import { usernameToEmail, isValidEmail } from '../utils/validators.js';
-import { maskAadhaar } from '../utils/index.js';
+import { maskAadhaar, EXPIRY_WARNING_DAYS } from '../utils/index.js';
 const DOC_TYPES = ['dl', 'aadhaar', 'photo', 'other'];
 const DOC_LABELS = { dl: 'Driving Licence', aadhaar: 'Aadhaar', photo: 'Driver Photo', other: 'Other Document' };
 export const DRIVER_STATUSES = ['active', 'inactive', 'on_leave', 'suspended'];
@@ -50,7 +50,7 @@ function dlStatus(license) {
   if (!l.validTo) return 'not_done';
   const left = Math.round((new Date(l.validTo).getTime() - Date.now()) / 86400000);
   if (left < 0) return 'expired';
-  if (left <= 30) return 'expiring';
+  if (left <= EXPIRY_WARNING_DAYS) return 'expiring';
   return 'valid';
 }
 

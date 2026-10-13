@@ -1,6 +1,6 @@
 import { ENV } from '../config/env.js';
 
-export const EXPIRY_WARNING_DAYS = Number(process.env.EXPIRY_WARNING_DAYS || 30);
+export const EXPIRY_WARNING_DAYS = Number(process.env.EXPIRY_WARNING_DAYS || 90);
 export const MAX_FILE = Number(process.env.MAX_FILE_SIZE_MB || 5) * 1024 * 1024;
 
 export const ALLOWED_DOC_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];

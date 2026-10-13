@@ -1,4 +1,4 @@
-export const WARNING_DAYS = 30;
+export const WARNING_DAYS = 90;
 
 export const parseDate = (value) => {
   if (!value) return null;

@@ -26,18 +26,34 @@ function makeController(collectionName) {
     },
 
     async create(req, res) {
-      const { name } = req.body;
-      if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name is required' });
+      const { name, parentId } = req.body;
+      const trimmed = String(name || '').trim();
+      if (!trimmed) return res.status(400).json({ error: 'Name is required' });
 
-      const existing = await db.collection(collectionName).where('name', '==', String(name).trim()).get();
-      if (!existing.empty) return res.status(409).json({ error: 'Item already exists' });
+      if (parentId) {
+        const parentSnap = await db.collection(collectionName).doc(String(parentId)).get();
+        if (!parentSnap.exists || parentSnap.data().active === false) {
+          return res.status(404).json({ error: 'Parent not found' });
+        }
+        if (parentSnap.data().parentId) {
+          return res.status(400).json({ error: 'Subcategories can only be one level deep' });
+        }
+      }
 
-      const ref = await db.collection(collectionName).add({
-        name: String(name).trim(),
+      const existing = await db.collection(collectionName).where('name', '==', trimmed).get();
+      const duplicate = existing.docs.find((d) => (d.data().parentId || null) === (parentId ? String(parentId) : null));
+      if (duplicate) {
+        return res.status(409).json({ error: parentId ? 'Subcategory already exists in this category' : 'Item already exists' });
+      }
+
+      const data = {
+        name: trimmed,
         active: true,
         createdBy: req.user.uid,
         createdAt: new Date()
-      });
+      };
+      if (parentId) data.parentId = String(parentId);
+      const ref = await db.collection(collectionName).add(data);
       res.status(201).json({ item: serializeDoc(await ref.get()) });
     },
 

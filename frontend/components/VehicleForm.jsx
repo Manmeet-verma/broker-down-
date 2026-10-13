@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Button, Field, Input, Select, Textarea, notify } from './ui';
+import { Button, Field, Input, Select, Textarea, Modal, notify } from './ui';
 import { useMasterData } from '@/lib/useMasterData';
+import { useAuth } from '@/lib/auth';
 import FileUpload from './FileUpload';
 
 function Section({ title, children }) {
@@ -33,17 +34,19 @@ function CalcField({ label, value, onChange, suffix }) {
 }
 
 const TABS = [
-  'Basic Details', 'Ownership', 'Supply', 'Invoice', 'Insurance', 'Agent',
+  'Basic Details', 'Ownership', 'Purchase Record', 'Invoice', 'Insurance', 'Agent',
   'Certificates', 'Finance', 'Taxes', 'Working Site', 'Applicables', 'Trallow'
 ];
 
 const emptyForm = {
-  categoryId: '', categoryName: '', type: 'company',
+  categoryId: '', categoryName: '', subcategoryId: '', subcategoryName: '', type: 'company',
   vehicleNumber: '', serialNumber: '', applicableNoType: 'serial',
   applicableSerialNo: '', applicableRcNo: '',
   engineNumber: '', chassisNumber: '', make: '', model: '',
   ownershipId: '', ownershipName: '', ownershipChanged: false, ownershipChangeReason: '', ownershipNewName: '',
-  supplySupplierName: '', supplySalesValue: '', supplyGstPercent: '', supplyGstAmount: '', supplyTotalAmount: '', supplyTcs: '', supplyOtherLabel: '', supplyOtherAmount: '',
+  supplySupplierName: '', supplyAddress: '', supplyGstNo: '', supplyEmail: '', supplyPhone: '',
+  supplySalesValue: '', supplyGstPercent: '', supplyGstAmount: '', supplyTotalAmount: '', supplyTcs: '', supplyOtherLabel: '', supplyOtherAmount: '',
+  supplyBuyerName: '', supplyBuyerGstNo: '', supplyPaymentMethod: '',
   invoiceInvoiceNo: '', invoiceInvoiceDate: '', invoiceBuyerBilling: '', invoiceBuyerGstNo: '', invoiceBuyerAddress: '', invoiceRcValidFrom: '', invoiceRcValidTo: '',
   insuranceApplicable: true, insuranceCompanyId: '', insuranceCompanyName: '', insurancePremiumAmount: '', insuranceGstPercent: '', insuranceGstAmount: '', insuranceTotalAmount: '',
   insuranceTypeId: '', insuranceTypeName: '', insurancePeriod: '', insuranceValidFrom: '', insuranceValidTo: '',
@@ -57,6 +60,7 @@ const emptyForm = {
   workingSiteReason: '', workingSiteOrderBy: '',
   transmitInsurance: false, evApplicable: false, challanApplicable: false, billApplicable: false,
   trallowApplicable: false, trallowNo: '', trallowName: '', trallowFreightAmount: '',
+  customTabs: {},
   taxes: []
 };
 
@@ -87,6 +91,8 @@ export function vehicleToForm(vehicle) {
     ...emptyForm,
     categoryId: v.categoryId ?? emptyForm.categoryId,
     categoryName: v.categoryName ?? emptyForm.categoryName,
+    subcategoryId: v.subcategoryId ?? emptyForm.subcategoryId,
+    subcategoryName: v.subcategoryName ?? emptyForm.subcategoryName,
     type: v.type || emptyForm.type,
     vehicleNumber: v.vehicleNumber ?? emptyForm.vehicleNumber,
     serialNumber: v.serialNumber ?? emptyForm.serialNumber,
@@ -100,6 +106,10 @@ export function vehicleToForm(vehicle) {
     ownershipId: v.ownershipId ?? ownership.id ?? emptyForm.ownershipId,
     ownershipName: v.ownershipName ?? ownership.name ?? emptyForm.ownershipName,
     supplySupplierName: supply.supplierName ?? emptyForm.supplySupplierName,
+    supplyAddress: supply.address ?? emptyForm.supplyAddress,
+    supplyGstNo: supply.gstNo ?? emptyForm.supplyGstNo,
+    supplyEmail: supply.email ?? emptyForm.supplyEmail,
+    supplyPhone: supply.phone ?? emptyForm.supplyPhone,
     supplySalesValue: supply.salesValue ?? emptyForm.supplySalesValue,
     supplyGstPercent: supply.gstPercent ?? emptyForm.supplyGstPercent,
     supplyGstAmount: supply.gstAmount ?? emptyForm.supplyGstAmount,
@@ -107,6 +117,9 @@ export function vehicleToForm(vehicle) {
     supplyTcs: supply.tcs ?? emptyForm.supplyTcs,
     supplyOtherLabel: supply.otherLabel ?? emptyForm.supplyOtherLabel,
     supplyOtherAmount: supply.otherAmount ?? emptyForm.supplyOtherAmount,
+    supplyBuyerName: supply.buyerName ?? emptyForm.supplyBuyerName,
+    supplyBuyerGstNo: supply.buyerGstNo ?? emptyForm.supplyBuyerGstNo,
+    supplyPaymentMethod: supply.paymentMethod ?? emptyForm.supplyPaymentMethod,
     invoiceInvoiceNo: invoice.invoiceNo ?? emptyForm.invoiceInvoiceNo,
     invoiceInvoiceDate: toDateInput(invoice.invoiceDate) || emptyForm.invoiceInvoiceDate,
     invoiceBuyerBilling: invoice.buyerBilling ?? emptyForm.invoiceBuyerBilling,
@@ -161,6 +174,7 @@ export function vehicleToForm(vehicle) {
     trallowNo: trallow.trallowNo ?? emptyForm.trallowNo,
     trallowName: trallow.trallowName ?? emptyForm.trallowName,
     trallowFreightAmount: trallow.freightAmount ?? emptyForm.trallowFreightAmount,
+    customTabs: (v.customTabs && typeof v.customTabs === 'object') ? v.customTabs : {},
     taxes: Array.isArray(v.taxes) ? v.taxes : []
   };
 }
@@ -177,6 +191,82 @@ export default function VehicleForm({ initial, vehicleId }) {
   const ownerships = useMasterData('ownershipNames');
   const insuranceTypes = useMasterData('insuranceTypes');
   const installmentCounts = useMasterData('installmentCounts');
+  const vehicleTabs = useMasterData('vehicleTabs');
+  const { user } = useAuth();
+
+  const [catOpen, setCatOpen] = useState(false);
+  const [catName, setCatName] = useState('');
+  const [catSaving, setCatSaving] = useState(false);
+
+  const [tabOpen, setTabOpen] = useState(false);
+  const [tabName, setTabName] = useState('');
+  const [tabFields, setTabFields] = useState([{ label: '', type: 'text' }]);
+  const [tabSaving, setTabSaving] = useState(false);
+
+  const parentCategories = categories.items.filter((c) => !c.parentId);
+  const subcategories = categories.items.filter((c) => c.parentId === form.categoryId);
+  const customTabs = vehicleTabs.items;
+
+  const allTabs = [
+    ...TABS.map((name, i) => ({ name, index: i })),
+    ...customTabs.map((t, i) => ({ name: t.name, index: TABS.length + i, def: t }))
+  ];
+
+  const createCategory = async () => {
+    if (!catName.trim()) return;
+    setCatSaving(true);
+    try {
+      const res = await api.post('/categories', { name: catName.trim() });
+      const created = res?.item;
+      notify('Category created');
+      setCatOpen(false);
+      setCatName('');
+      await categories.reload();
+      if (created) {
+        setForm((f) => ({ ...f, categoryId: created.id, categoryName: created.name, subcategoryId: '', subcategoryName: '' }));
+      }
+    } catch (e) {
+      notify(e.message, 'error');
+    } finally {
+      setCatSaving(false);
+    }
+  };
+
+  const createTab = async () => {
+    const fields = tabFields
+      .map((f) => ({ label: f.label.trim(), type: f.type }))
+      .filter((f) => f.label);
+    if (!tabName.trim()) { notify('Tab name is required', 'error'); return; }
+    if (!fields.length) { notify('Add at least one field', 'error'); return; }
+    setTabSaving(true);
+    try {
+      const res = await api.post('/vehicleTabs', { name: tabName.trim(), fields });
+      notify('Tab created');
+      setTabOpen(false);
+      setTabName('');
+      setTabFields([{ label: '', type: 'text' }]);
+      await vehicleTabs.reload();
+      if (res?.item) {
+        const fresh = await api.get('/vehicleTabs');
+        const idx = (fresh.items || []).findIndex((t) => t.id === res.item.id);
+        if (idx >= 0) setTab(TABS.length + idx);
+      }
+    } catch (e) {
+      notify(e.message, 'error');
+    } finally {
+      setTabSaving(false);
+    }
+  };
+
+  const setCustomValue = (tabId, label, val) => {
+    setForm((f) => ({
+      ...f,
+      customTabs: {
+        ...(f.customTabs || {}),
+        [tabId]: { ...((f.customTabs || {})[tabId] || {}), [label]: val }
+      }
+    }));
+  };
 
   useEffect(() => {
     if (initial) setForm(initial);
@@ -215,6 +305,10 @@ export default function VehicleForm({ initial, vehicleId }) {
   useEffect(() => { autoCalcSupply(); }, [form.supplySalesValue, form.supplyGstPercent]);
   useEffect(() => { autoCalcInsurance(); }, [form.insurancePremiumAmount, form.insuranceGstPercent]);
 
+  const supplyGrandTotal = (
+    Number(form.supplyTotalAmount || 0) + Number(form.supplyTcs || 0) + Number(form.supplyOtherAmount || 0)
+  ).toFixed(2);
+
   const addTax = () => {
     setForm((f) => ({ ...f, taxes: [...(f.taxes || []), { type: '', period: '', amount: '', pdfName: '' }] }));
   };
@@ -245,6 +339,8 @@ export default function VehicleForm({ initial, vehicleId }) {
       for (const [key, val] of Object.entries(form)) {
         if (key === 'taxes') {
           fd.append('taxes', JSON.stringify(val || []));
+        } else if (key === 'customTabs') {
+          fd.append('customTabs', JSON.stringify(val || {}));
         } else if (typeof val === 'boolean') {
           fd.append(key, String(val));
         } else if (val !== null && val !== undefined && val !== '') {
@@ -277,15 +373,34 @@ export default function VehicleForm({ initial, vehicleId }) {
         <Section title="Basic Details">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Category" required>
-              <select value={form.categoryId} onChange={(e) => {
-                const opt = categories.items.find(c => c.id === e.target.value);
-                setForm(f => ({ ...f, categoryId: e.target.value, categoryName: opt?.name || '' }));
-              }} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-                <option value="">Select category</option>
-                {categories.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <div className="flex items-center gap-2">
+                <select value={form.categoryId} onChange={(e) => {
+                  const opt = categories.items.find(c => c.id === e.target.value);
+                  setForm(f => ({ ...f, categoryId: e.target.value, categoryName: opt?.name || '', subcategoryId: '', subcategoryName: '' }));
+                }} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                  <option value="">Select category</option>
+                  {parentCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {user?.role === 'admin' && (
+                  <button type="button" onClick={() => setCatOpen(true)} title="Create category"
+                    className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    +
+                  </button>
+                )}
+              </div>
             </Field>
-            <Field label="Type" required>
+            {subcategories.length > 0 && (
+              <Field label="Subcategory">
+                <select value={form.subcategoryId} onChange={(e) => {
+                  const opt = subcategories.find(c => c.id === e.target.value);
+                  setForm(f => ({ ...f, subcategoryId: e.target.value, subcategoryName: opt?.name || '' }));
+                }} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                  <option value="">Select subcategory</option>
+                  {subcategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+            )}
+            <Field label="Ownership" required>
               <Select value={form.type} onChange={set('type')}>
                 <option value="company">In Favor of Company</option>
                 <option value="personal">Personal</option>
@@ -369,25 +484,44 @@ export default function VehicleForm({ initial, vehicleId }) {
       );
 
       case 2: return (
-        <Section title="Supply Details">
+        <Section title="Purchase Record">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Supplier Name">
               <Input value={form.supplySupplierName} onChange={set('supplySupplierName')} placeholder="Supplier name" />
             </Field>
-            <Field label="Sales Value (Amount)">
+            <Field label="Address">
+              <Input value={form.supplyAddress} onChange={set('supplyAddress')} placeholder="Supplier address" />
+            </Field>
+            <Field label="GST No. (Supplier)">
+              <Input value={form.supplyGstNo} onChange={set('supplyGstNo')} placeholder="Supplier GSTIN" className="font-mono uppercase" />
+            </Field>
+            <Field label="Email ID">
+              <Input type="email" value={form.supplyEmail} onChange={set('supplyEmail')} placeholder="supplier@email.com" />
+            </Field>
+            <Field label="Phone No.">
+              <Input value={form.supplyPhone} onChange={set('supplyPhone')} placeholder="Phone number" />
+            </Field>
+            <Field label="Payment Method">
+              <Select value={form.supplyPaymentMethod} onChange={set('supplyPaymentMethod')}>
+                <option value="">Select method</option>
+                <option value="financed">Financed</option>
+                <option value="without_financed">Without Financed</option>
+              </Select>
+            </Field>
+            <Field label="Sale Value (Basic)">
               <Input type="number" value={form.supplySalesValue} onChange={set('supplySalesValue')} placeholder="0.00" />
             </Field>
-            <Field label="GST %">
+            <Field label="GST / Basic (%)">
               <Input type="number" value={form.supplyGstPercent} onChange={set('supplyGstPercent')} placeholder="18" />
             </Field>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-6 rounded-lg bg-slate-50 p-4">
-            <CalcField label="GST Amount" value={form.supplyGstAmount} suffix="₹" />
-            <CalcField label="Total Amount" value={form.supplyTotalAmount} suffix="₹" />
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Field label="TCS">
               <Input type="number" value={form.supplyTcs} onChange={set('supplyTcs')} placeholder="0.00" />
+            </Field>
+            <Field label="Name of Buyer">
+              <Input value={form.supplyBuyerName} onChange={set('supplyBuyerName')} placeholder="Buyer name" />
+            </Field>
+            <Field label="GST No. (Buyer)">
+              <Input value={form.supplyBuyerGstNo} onChange={set('supplyBuyerGstNo')} placeholder="Buyer GSTIN" className="font-mono uppercase" />
             </Field>
             <Field label="Other Label">
               <Input value={form.supplyOtherLabel} onChange={set('supplyOtherLabel')} placeholder="Label" />
@@ -395,6 +529,11 @@ export default function VehicleForm({ initial, vehicleId }) {
             <Field label="Other Amount">
               <Input type="number" value={form.supplyOtherAmount} onChange={set('supplyOtherAmount')} placeholder="0.00" />
             </Field>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-6 rounded-lg bg-slate-50 p-4">
+            <CalcField label="GST Amount" value={form.supplyGstAmount} suffix="₹" />
+            <CalcField label="Total Amount" value={form.supplyTotalAmount} suffix="₹" />
+            <CalcField label="Grand Total" value={supplyGrandTotal} suffix="₹" />
           </div>
         </Section>
       );
@@ -625,23 +764,53 @@ export default function VehicleForm({ initial, vehicleId }) {
         </Section>
       );
 
-      default: return null;
+      default: {
+        const customDef = customTabs[tab - TABS.length];
+        if (!customDef) return null;
+        const values = (form.customTabs || {})[customDef.id] || {};
+        return (
+          <Section title={customDef.name}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {(customDef.fields || []).map((fld, fi) => (
+                <Field key={`${customDef.id}-${fi}`} label={fld.label}>
+                  {fld.type === 'textarea' ? (
+                    <Textarea value={values[fld.label] ?? ''} onChange={(e) => setCustomValue(customDef.id, fld.label, e.target.value)} placeholder={fld.label} />
+                  ) : (
+                    <Input
+                      type={fld.type === 'number' ? 'number' : fld.type === 'date' ? 'date' : 'text'}
+                      value={values[fld.label] ?? ''}
+                      onChange={(e) => setCustomValue(customDef.id, fld.label, e.target.value)}
+                      placeholder={fld.label}
+                    />
+                  )}
+                </Field>
+              ))}
+            </div>
+          </Section>
+        );
+      }
     }
   };
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
-        {TABS.map((t, i) => (
-          <button key={t} type="button" onClick={() => setTab(i)}
-            className={`rounded-lg px-3 py-2 text-xs font-medium transition ${tab === i ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-            {t}
+      <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+        {allTabs.map((t) => (
+          <button key={t.name} type="button" onClick={() => setTab(t.index)}
+            className={`rounded-lg px-3 py-2 text-xs font-medium transition ${tab === t.index ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            {t.name}
           </button>
         ))}
+        {user?.role === 'admin' && (
+          <button type="button" onClick={() => setTabOpen(true)} title="Create a new tab"
+            className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-semibold text-slate-500 hover:border-blue-400 hover:text-blue-600">
+            + Add Tab
+          </button>
+        )}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-slate-800">{TABS[tab]}</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-800">{allTabs[tab]?.name || TABS[tab]}</h3>
         {renderTab()}
       </div>
 
@@ -651,13 +820,67 @@ export default function VehicleForm({ initial, vehicleId }) {
         </div>
         <div className="flex gap-2">
           <Button type="button" variant="secondary" onClick={() => router.back()}>Cancel</Button>
-          {tab < TABS.length - 1 ? (
+          {tab < allTabs.length - 1 ? (
             <Button type="button" onClick={() => setTab(tab + 1)}>Next</Button>
           ) : (
             <Button type="submit" loading={saving}>{vehicleId ? 'Update Vehicle' : 'Create Vehicle'}</Button>
           )}
         </div>
       </div>
+
+      <Modal open={catOpen} onClose={() => setCatOpen(false)} title="Create Category">
+        <div className="space-y-4">
+          <Field label="Category Name" required>
+            <Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="e.g. Excavator"
+              onKeyDown={(e) => e.key === 'Enter' && createCategory()} />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setCatOpen(false)}>Cancel</Button>
+            <Button onClick={createCategory} loading={catSaving}>Create Category</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={tabOpen} onClose={() => setTabOpen(false)} title="Create Tab" wide>
+        <div className="space-y-4">
+          <Field label="Tab Name" required>
+            <Input value={tabName} onChange={(e) => setTabName(e.target.value)} placeholder="e.g. Attachments, Site Info..." />
+          </Field>
+          <div>
+            <span className="mb-2 block text-xs font-semibold text-slate-600">Fields</span>
+            <div className="space-y-2">
+              {tabFields.map((fld, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input value={fld.label} placeholder={`Field ${i + 1} label`}
+                    onChange={(e) => setTabFields((arr) => arr.map((f, idx) => idx === i ? { ...f, label: e.target.value } : f))} />
+                  <select value={fld.type}
+                    onChange={(e) => setTabFields((arr) => arr.map((f, idx) => idx === i ? { ...f, type: e.target.value } : f))}
+                    className="w-36 shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                    <option value="text">Text</option>
+                    <option value="number">Number</option>
+                    <option value="date">Date</option>
+                    <option value="textarea">Long text</option>
+                  </select>
+                  {tabFields.length > 1 && (
+                    <button type="button" onClick={() => setTabFields((arr) => arr.filter((_, idx) => idx !== i))}
+                      className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => setTabFields((arr) => [...arr, { label: '', type: 'text' }])}
+              className="mt-2 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:border-blue-400 hover:text-blue-600">
+              + Add Field
+            </button>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setTabOpen(false)}>Cancel</Button>
+            <Button onClick={createTab} loading={tabSaving}>Create Tab</Button>
+          </div>
+        </div>
+      </Modal>
     </form>
   );
 }
